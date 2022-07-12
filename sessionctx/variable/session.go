@@ -2283,7 +2283,13 @@ const (
 	// SlowLogIsExplicitTxn is used to indicate whether this sql execute in explicit transaction or not.
 	SlowLogIsExplicitTxn = "IsExplicitTxn"
 	// SlowLogIsWriteCacheTable is used to indicate whether writing to the cache table need to wait for the read lock to expire.
-	SlowLogIsWriteCacheTable = "IsWriteCacheTable"
+	SlowLogIsWriteCacheTable      = "IsWriteCacheTable"
+	InsertRowsDuration            = "InsertRowsDuration"
+	InsertBuildRowsDuration       = "InsertBuildRowsDuration"
+	InsertAddTotalRecDuration     = "InsertAddTotalRecDuration"
+	InsertAddOneRecDuration       = "InsertAddOneRecDuration"
+	InsertMembufferGetSetDuration = "InsertMembufferGetSetDuration"
+	InsertMutationChecker         = "InsertMutationChecker"
 )
 
 // SlowQueryLogItems is a collection of items that should be included in the
@@ -2301,6 +2307,7 @@ type SlowQueryLogItems struct {
 	StatsInfos        map[string]uint64
 	CopTasks          *stmtctx.CopTasksDetails
 	ExecDetail        execdetails.ExecDetails
+	StmtDetail        execdetails.StmtExecDetails
 	MemMax            int64
 	DiskMax           int64
 	Succ              bool
@@ -2383,6 +2390,13 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 
 	writeSlowLogItem(&buf, SlowLogOptimizeTimeStr, strconv.FormatFloat(logItems.TimeOptimize.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogWaitTSTimeStr, strconv.FormatFloat(logItems.TimeWaitTS.Seconds(), 'f', -1, 64))
+
+	writeSlowLogItem(&buf, InsertRowsDuration, strconv.FormatFloat(logItems.StmtDetail.InsertRowsDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, InsertBuildRowsDuration, strconv.FormatFloat(logItems.StmtDetail.InsertBuildRowsDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, InsertAddTotalRecDuration, strconv.FormatFloat(logItems.StmtDetail.InsertAddTotalRecDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, InsertAddOneRecDuration, strconv.FormatFloat(logItems.StmtDetail.InsertAddOneRecDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, InsertMembufferGetSetDuration, strconv.FormatFloat(logItems.StmtDetail.InsertMembufferGetSetDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, InsertMutationChecker, strconv.FormatFloat(logItems.StmtDetail.InsertMutationChecker.Seconds(), 'f', -1, 64))
 
 	if execDetailStr := logItems.ExecDetail.String(); len(execDetailStr) > 0 {
 		buf.WriteString(SlowLogRowPrefixStr + execDetailStr + "\n")

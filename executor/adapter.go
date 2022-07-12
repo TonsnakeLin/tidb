@@ -1035,6 +1035,7 @@ func (a *ExecStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults bool) {
 		StatsInfos:        statsInfos,
 		CopTasks:          copTaskInfo,
 		ExecDetail:        execDetail,
+		StmtDetail:        stmtDetail,
 		MemMax:            memMax,
 		DiskMax:           diskMax,
 		Succ:              succ,
