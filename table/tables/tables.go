@@ -45,6 +45,7 @@ import (
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/pingcap/tidb/util/collate"
+	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/generatedexpr"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/stringutil"
@@ -667,6 +668,7 @@ func checkTempTableSize(ctx sessionctx.Context, tmpTable tableutil.TempTable, tb
 
 // AddRecord implements table.Table AddRecord interface.
 func (t *TableCommon) AddRecord(sctx sessionctx.Context, r []types.Datum, opts ...table.AddRecordOption) (recordID kv.Handle, err error) {
+	startAll := time.Now()
 	txn, err := sctx.Txn(true)
 	if err != nil {
 		return nil, err
@@ -697,6 +699,16 @@ func (t *TableCommon) AddRecord(sctx sessionctx.Context, r []types.Datum, opts .
 	} else {
 		ctx = context.Background()
 	}
+
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+		defer func() {
+			stmtDetail.InsertAddOneRecDuration = time.Since(startAll)
+		}()
+	}
+
 	var hasRecordID bool
 	cols := t.Cols()
 	// opt.IsUpdate is a flag for update.
@@ -821,6 +833,7 @@ func (t *TableCommon) AddRecord(sctx sessionctx.Context, r []types.Datum, opts .
 	}
 	value := writeBufs.RowValBuf
 
+	startMembufferGetSet := time.Now()
 	var setPresume bool
 	if !sctx.GetSessionVars().StmtCtx.BatchCheck {
 		if t.meta.TempTableType != model.TempTableNone {
@@ -851,6 +864,7 @@ func (t *TableCommon) AddRecord(sctx sessionctx.Context, r []types.Datum, opts .
 	} else {
 		err = memBuffer.Set(key, value)
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -871,6 +885,11 @@ func (t *TableCommon) AddRecord(sctx sessionctx.Context, r []types.Datum, opts .
 	} else {
 		err = txn.SetAssertion(key, kv.SetAssertNotExist)
 	}
+
+	if stmtDetail != nil {
+		stmtDetail.InsertMembufferGetSetDuration = time.Since(startMembufferGetSet)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -893,12 +912,15 @@ func (t *TableCommon) AddRecord(sctx sessionctx.Context, r []types.Datum, opts .
 	if err = injectMutationError(t, txn, sh); err != nil {
 		return nil, err
 	}
+	startCheckerTime := time.Now()
 	if sessVars.EnableMutationChecker {
 		if err = CheckDataConsistency(txn, sessVars, t, r, nil, memBuffer, sh); err != nil {
 			return nil, errors.Trace(err)
 		}
 	}
-
+	if stmtDetail != nil {
+		stmtDetail.InsertMutationChecker = time.Since(startCheckerTime)
+	}
 	memBuffer.Release(sh)
 
 	if shouldWriteBinlog(sctx, t.meta) {

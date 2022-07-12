@@ -225,6 +225,15 @@ func (e *InsertValues) processSetList() error {
 
 // insertRows processes `insert|replace into values ()` or `insert|replace into set x=y`
 func insertRows(ctx context.Context, base insertCommon) (err error) {
+	start := time.Now()
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+		defer func() {
+			stmtDetail.InsertRowsDuration = time.Since(start)
+		}()
+	}
 	e := base.insertCommon()
 	// For `insert|replace into set x=y`, process the set list here.
 	if err = e.processSetList(); err != nil {
@@ -279,6 +288,11 @@ func insertRows(ctx context.Context, base insertCommon) (err error) {
 	if err != nil {
 		return err
 	}
+
+	if stmtDetail != nil {
+		stmtDetail.InsertBuildRowsDuration = time.Since(start)
+	}
+
 	err = base.exec(ctx, rows)
 	if err != nil {
 		return err

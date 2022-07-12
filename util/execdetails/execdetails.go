@@ -52,7 +52,13 @@ var StmtExecDetailKey = stmtExecDetailKeyType{}
 
 // StmtExecDetails contains stmt level execution detail info.
 type StmtExecDetails struct {
-	WriteSQLRespDuration time.Duration
+	WriteSQLRespDuration          time.Duration
+	InsertRowsDuration            time.Duration
+	InsertBuildRowsDuration       time.Duration
+	InsertAddTotalRecDuration     time.Duration
+	InsertAddOneRecDuration       time.Duration
+	InsertMembufferGetSetDuration time.Duration
+	InsertMutationChecker         time.Duration
 }
 
 const (

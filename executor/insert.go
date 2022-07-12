@@ -31,6 +31,7 @@ import (
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
+	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/memory"
 	"github.com/pingcap/tidb/util/stringutil"
@@ -50,6 +51,16 @@ type InsertExec struct {
 
 func (e *InsertExec) exec(ctx context.Context, rows [][]types.Datum) error {
 	defer trace.StartRegion(ctx, "InsertExec").End()
+	startAll := time.Now()
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+		defer func() {
+			stmtDetail.InsertAddTotalRecDuration = time.Since(startAll)
+		}()
+	}
+
 	logutil.Eventf(ctx, "insert %d rows into table `%s`", len(rows), stringutil.MemoizeStr(func() string {
 		var tblName string
 		if meta := e.Table.Meta(); meta != nil {
