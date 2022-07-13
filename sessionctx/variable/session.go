@@ -2290,6 +2290,9 @@ const (
 	InsertAddOneRecDuration       = "InsertAddOneRecDuration"
 	InsertMembufferGetSetDuration = "InsertMembufferGetSetDuration"
 	InsertMutationChecker         = "InsertMutationChecker"
+	GetNeedLockKeysDuration       = "GetNeedLockKeysDuration"
+	LockTotalInCGODuration        = "LockTotalInCGODuration"
+	LockRPCDuration               = "LockRPCDuration"
 )
 
 // SlowQueryLogItems is a collection of items that should be included in the
@@ -2397,6 +2400,9 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	writeSlowLogItem(&buf, InsertAddOneRecDuration, strconv.FormatFloat(logItems.StmtDetail.InsertAddOneRecDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, InsertMembufferGetSetDuration, strconv.FormatFloat(logItems.StmtDetail.InsertMembufferGetSetDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, InsertMutationChecker, strconv.FormatFloat(logItems.StmtDetail.InsertMutationChecker.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, GetNeedLockKeysDuration, strconv.FormatFloat(logItems.StmtDetail.GetNeedLockKeysDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, LockTotalInCGODuration, strconv.FormatFloat(logItems.StmtDetail.LockTotalInCGODuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, LockRPCDuration, strconv.FormatFloat(logItems.StmtDetail.LockRPCDuration.Seconds(), 'f', -1, 64))
 
 	if execDetailStr := logItems.ExecDetail.String(); len(execDetailStr) > 0 {
 		buf.WriteString(SlowLogRowPrefixStr + execDetailStr + "\n")

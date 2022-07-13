@@ -59,6 +59,10 @@ type StmtExecDetails struct {
 	InsertAddOneRecDuration       time.Duration
 	InsertMembufferGetSetDuration time.Duration
 	InsertMutationChecker         time.Duration
+	GetNeedLockKeysDuration       time.Duration
+	LockAllKeysDuration           time.Duration
+	LockTotalInCGODuration        time.Duration
+	LockRPCDuration               time.Duration
 }
 
 const (

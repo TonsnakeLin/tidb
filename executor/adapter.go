@@ -687,6 +687,13 @@ func (a *ExecStmt) handlePessimisticDML(ctx context.Context, e Executor) error {
 		return err
 	}
 	txnCtx := sctx.GetSessionVars().TxnCtx
+
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+	}
+
 	for {
 		startPointGetLocking := time.Now()
 		_, err = a.handleNoDelayExecutor(ctx, e)
@@ -704,6 +711,7 @@ func (a *ExecStmt) handlePessimisticDML(ctx context.Context, e Executor) error {
 			}
 			continue
 		}
+		startGetkeyNeedLock := time.Now()
 		keys, err1 := txn.(pessimisticTxn).KeysNeedToLock()
 		if err1 != nil {
 			return err1
@@ -719,10 +727,22 @@ func (a *ExecStmt) handlePessimisticDML(ctx context.Context, e Executor) error {
 		if err != nil {
 			return err
 		}
+
+		if stmtDetail != nil {
+			stmtDetail.GetNeedLockKeysDuration += time.Since(startGetkeyNeedLock)
+		}
+
 		var lockKeyStats *util.LockKeysDetails
 		ctx = context.WithValue(ctx, util.LockKeysDetailCtxKey, &lockKeyStats)
 		startLocking := time.Now()
 		err = txn.LockKeys(ctx, lockCtx, keys...)
+
+		if stmtDetail != nil {
+			stmtDetail.LockAllKeysDuration += time.Since(startLocking)
+			stmtDetail.LockTotalInCGODuration += lockKeyStats.TotalTime
+			stmtDetail.LockRPCDuration += time.Duration(lockKeyStats.LockRPCTime)
+		}
+
 		if lockKeyStats != nil {
 			seVars.StmtCtx.MergeLockKeysExecDetails(lockKeyStats)
 		}
