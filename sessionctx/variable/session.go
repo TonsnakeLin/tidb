@@ -2293,6 +2293,7 @@ const (
 	GetNeedLockKeysDuration       = "GetNeedLockKeysDuration"
 	LockTotalInCGODuration        = "LockTotalInCGODuration"
 	LockRPCDuration               = "LockRPCDuration"
+	RequestRPCTime                = "RequestRPCTime"
 )
 
 // SlowQueryLogItems is a collection of items that should be included in the
@@ -2325,6 +2326,7 @@ type SlowQueryLogItems struct {
 	KVTotal           time.Duration
 	PDTotal           time.Duration
 	BackoffTotal      time.Duration
+	RequestRPCTime    time.Duration
 	WriteSQLRespTotal time.Duration
 	ExecRetryCount    uint
 	ExecRetryTime     time.Duration
@@ -2501,6 +2503,7 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	writeSlowLogItem(&buf, SlowLogKVTotal, strconv.FormatFloat(logItems.KVTotal.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogPDTotal, strconv.FormatFloat(logItems.PDTotal.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogBackoffTotal, strconv.FormatFloat(logItems.BackoffTotal.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, RequestRPCTime, strconv.FormatFloat(logItems.RequestRPCTime.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogWriteSQLRespTotal, strconv.FormatFloat(logItems.WriteSQLRespTotal.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogResultRows, strconv.FormatInt(logItems.ResultRows, 10))
 	writeSlowLogItem(&buf, SlowLogSucc, strconv.FormatBool(logItems.Succ))
