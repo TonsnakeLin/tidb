@@ -739,8 +739,10 @@ func (a *ExecStmt) handlePessimisticDML(ctx context.Context, e Executor) error {
 
 		if stmtDetail != nil {
 			stmtDetail.LockAllKeysDuration += time.Since(startLocking)
-			stmtDetail.LockTotalInCGODuration += lockKeyStats.TotalTime
-			stmtDetail.LockRPCDuration += time.Duration(lockKeyStats.LockRPCTime)
+			if lockKeyStats != nil {
+				stmtDetail.LockTotalInCGODuration += lockKeyStats.TotalTime
+				stmtDetail.LockRPCDuration += time.Duration(lockKeyStats.LockRPCTime)
+			}
 		}
 
 		if lockKeyStats != nil {
