@@ -207,6 +207,13 @@ func (d ExecDetails) String() string {
 			parts = append(parts, RocksdbBlockReadByteStr+": "+strconv.FormatUint(scanDetail.RocksdbBlockReadByte, 10))
 		}
 	}
+
+	lockDetail := d.LockKeysDetail
+	if lockDetail != nil {
+		parts = append(parts, "lock_rpc_count"+": "+strconv.FormatInt(lockDetail.LockRPCCount, 10))
+		parts = append(parts, "lock_tikv_time"+": "+strconv.FormatInt(lockDetail.LockTiKVTime, 10))
+	}
+
 	return strings.Join(parts, " ")
 }
 
