@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"runtime/trace"
+	"time"
 
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/kv"
@@ -241,6 +242,13 @@ func (e *UpdateExec) Next(ctx context.Context, req *chunk.Chunk) error {
 }
 
 func (e *UpdateExec) updateRows(ctx context.Context) (int, error) {
+	start1 := time.Now()
+	stmtExecDetails := GetStmtExecDetails(ctx)
+	defer func() {
+		if stmtExecDetails != nil {
+			stmtExecDetails.UpdateRowsDuration = time.Since(start1)
+		}
+	}()
 	fields := retTypes(e.children[0])
 	colsInfo := make([]*table.Column, len(fields))
 	for _, content := range e.tblColPosInfos {
@@ -260,9 +268,18 @@ func (e *UpdateExec) updateRows(ctx context.Context) (int, error) {
 	}
 	memUsageOfChk := int64(0)
 	totalNumRows := 0
+	if stmtExecDetails != nil {
+		stmtExecDetails.UpdatePrepareDuraion = time.Since(start1)
+	}
 	for {
+		start2 := time.Now()
 		e.memTracker.Consume(-memUsageOfChk)
 		err := Next(ctx, e.children[0], chk)
+
+		if stmtExecDetails != nil {
+			stmtExecDetails.UpdateChildrenExecDutaion += time.Since(start2)
+		}
+
 		if err != nil {
 			return 0, err
 		}
@@ -270,6 +287,7 @@ func (e *UpdateExec) updateRows(ctx context.Context) (int, error) {
 		if chk.NumRows() == 0 {
 			break
 		}
+		start3 := time.Now()
 		memUsageOfChk = chk.MemoryUsage()
 		e.memTracker.Consume(memUsageOfChk)
 		if e.collectRuntimeStatsEnabled() {
@@ -321,6 +339,9 @@ func (e *UpdateExec) updateRows(ctx context.Context) (int, error) {
 		}
 		totalNumRows += chk.NumRows()
 		chk = chunk.Renew(chk, e.maxChunkSize)
+		if stmtExecDetails != nil {
+			stmtExecDetails.UpdateUpdateTableDuraiton += time.Since(start3)
+		}
 	}
 	return totalNumRows, nil
 }

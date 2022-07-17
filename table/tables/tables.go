@@ -331,6 +331,13 @@ func (t *TableCommon) RecordKey(h kv.Handle) kv.Key {
 // `touched` means which columns are really modified, used for secondary indices.
 // Length of `oldData` and `newData` equals to length of `t.WritableCols()`.
 func (t *TableCommon) UpdateRecord(ctx context.Context, sctx sessionctx.Context, h kv.Handle, oldData, newData []types.Datum, touched []bool) error {
+	start1 := time.Now()
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+		stmtDetail.UpdateUpdateOneRecDuration += time.Since(start1)
+	}
 	txn, err := sctx.Txn(true)
 	if err != nil {
 		return err
@@ -416,7 +423,11 @@ func (t *TableCommon) UpdateRecord(ctx context.Context, sctx sessionctx.Context,
 			return err
 		}
 	} else {
+		start2 := time.Now()
 		err = t.rebuildIndices(sctx, txn, h, touched, oldData, newData, table.WithCtx(ctx))
+		if stmtDetail != nil {
+			stmtDetail.UpdateRebuildIndexDuration += time.Since(start2)
+		}
 		if err != nil {
 			return err
 		}

@@ -20,6 +20,7 @@ import (
 	"runtime/trace"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -188,6 +189,14 @@ func (e *ProjectionExec) isUnparallelExec() bool {
 
 func (e *ProjectionExec) unParallelExecute(ctx context.Context, chk *chunk.Chunk) error {
 	// transmit the requiredRows
+	start := time.Now()
+	defer func() {
+		stmtExecDetail := GetStmtExecDetails(ctx)
+		if stmtExecDetail != nil {
+			stmtExecDetail.ProjUnParallelExecDuration = time.Since(start)
+		}
+	}()
+
 	e.childResult.SetRequiredRows(chk.RequiredRows(), e.maxChunkSize)
 	mSize := e.childResult.MemoryUsage()
 	err := Next(ctx, e.children[0], e.childResult)

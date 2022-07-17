@@ -60,9 +60,23 @@ type StmtExecDetails struct {
 	InsertMembufferGetSetDuration time.Duration
 	InsertMutationChecker         time.Duration
 	GetNeedLockKeysDuration       time.Duration
-	LockAllKeysDuration           time.Duration
+	DMLLockTotalDuration          time.Duration
 	LockTotalInCGODuration        time.Duration
 	LockRPCDuration               time.Duration
+	SelForUpdateExecDuration      time.Duration
+	PointGetExecDuration          time.Duration
+	PointGetPrepareDuration       time.Duration
+	PointGetGetValueDureation     time.Duration
+	PointGetLockeyDuration        time.Duration
+	ProjUnParallelExecDuration    time.Duration
+	PessDMLExecutorTotalDuration  time.Duration
+	UpdateRowsDuration            time.Duration
+	UpdatePrepareDuraion          time.Duration
+	UpdateChildrenExecDutaion     time.Duration
+	UpdateUpdateTableDuraiton     time.Duration
+	UpdateUpdateOneRecDuration    time.Duration
+	UpdateRebuildIndexDuration    time.Duration
+	StmtTxnTotalDuration          time.Duration
 }
 
 const (

@@ -617,7 +617,12 @@ func (a *ExecStmt) handlePessimisticSelectForUpdate(ctx context.Context, e Execu
 }
 
 func (a *ExecStmt) runPessimisticSelectForUpdate(ctx context.Context, e Executor) (sqlexec.RecordSet, error) {
+	start := time.Now()
+	stmtExecDetails := GetStmtExecDetails(ctx)
 	defer func() {
+		if stmtExecDetails != nil {
+			stmtExecDetails.SelForUpdateExecDuration = time.Since(start)
+		}
 		terror.Log(e.Close())
 	}()
 	var rows []chunk.Row
@@ -676,6 +681,14 @@ func (a *ExecStmt) handleNoDelayExecutor(ctx context.Context, e Executor) (sqlex
 	}
 	return nil, err
 }
+func GetStmtExecDetails(ctx context.Context) *execdetails.StmtExecDetails {
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+	}
+	return stmtDetail
+}
 
 func (a *ExecStmt) handlePessimisticDML(ctx context.Context, e Executor) error {
 	sctx := a.Ctx
@@ -687,16 +700,16 @@ func (a *ExecStmt) handlePessimisticDML(ctx context.Context, e Executor) error {
 		return err
 	}
 	txnCtx := sctx.GetSessionVars().TxnCtx
-
-	var stmtDetail *execdetails.StmtExecDetails
-	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
-	if stmtDetailRaw != nil {
-		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
-	}
+	stmtDetail := GetStmtExecDetails(ctx)
 
 	for {
 		startPointGetLocking := time.Now()
 		_, err = a.handleNoDelayExecutor(ctx, e)
+
+		if stmtDetail != nil {
+			stmtDetail.PessDMLExecutorTotalDuration = time.Since(startPointGetLocking)
+		}
+
 		if !txn.Valid() {
 			return err
 		}
@@ -738,7 +751,7 @@ func (a *ExecStmt) handlePessimisticDML(ctx context.Context, e Executor) error {
 		err = txn.LockKeys(ctx, lockCtx, keys...)
 
 		if stmtDetail != nil {
-			stmtDetail.LockAllKeysDuration += time.Since(startLocking)
+			stmtDetail.DMLLockTotalDuration += time.Since(startLocking)
 			if lockKeyStats != nil {
 				stmtDetail.LockTotalInCGODuration += lockKeyStats.TotalTime
 				stmtDetail.LockRPCDuration += time.Duration(lockKeyStats.LockRPCTime)

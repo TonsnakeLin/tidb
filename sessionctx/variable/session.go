@@ -2294,6 +2294,20 @@ const (
 	LockTotalInCGODuration        = "LockTotalInCGODuration"
 	LockRPCDuration               = "LockRPCDuration"
 	RequestRPCTime                = "RequestRPCTime"
+	SelForUpdateExecDuration      = "SelForUpdateExecDuration"
+	PointGetExecDuration          = "PointGetExecDuration"
+	PointGetPrepareDuration       = "PointGetPrepareDuration"
+	PointGetGetValueDureation     = "PointGetGetValueDureation"
+	PointGetLockeyDuration        = "PointGetLockeyDuration"
+	ProjUnParallelExecDuration    = "ProjUnParallelExecDuration"
+	PessDMLExecutorTotalDuration  = "PessDMLExecutorTotalDuration"
+	UpdateRowsDuration            = "UpdateRowsDuration"
+	UpdatePrepareDuraion          = "UpdatePrepareDuraion"
+	UpdateChildrenExecDutaion     = "UpdateChildrenExecDutaion"
+	UpdateUpdateTableDuraiton     = "UpdateUpdateTableDuraiton"
+	UpdateUpdateOneRecDuration    = "UpdateUpdateOneRecDuration"
+	UpdateRebuildIndexDuration    = "UpdateRebuildIndexDuration"
+	StmtTxnTotalDuration          = "StmtTxnTotalDuration"
 )
 
 // SlowQueryLogItems is a collection of items that should be included in the
@@ -2396,6 +2410,8 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	writeSlowLogItem(&buf, SlowLogOptimizeTimeStr, strconv.FormatFloat(logItems.TimeOptimize.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogWaitTSTimeStr, strconv.FormatFloat(logItems.TimeWaitTS.Seconds(), 'f', -1, 64))
 
+	writeSlowLogItem(&buf, PessDMLExecutorTotalDuration, strconv.FormatFloat(logItems.StmtDetail.PessDMLExecutorTotalDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, StmtTxnTotalDuration, strconv.FormatFloat(logItems.StmtDetail.StmtTxnTotalDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, InsertRowsDuration, strconv.FormatFloat(logItems.StmtDetail.InsertRowsDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, InsertBuildRowsDuration, strconv.FormatFloat(logItems.StmtDetail.InsertBuildRowsDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, InsertAddTotalRecDuration, strconv.FormatFloat(logItems.StmtDetail.InsertAddTotalRecDuration.Seconds(), 'f', -1, 64))
@@ -2405,6 +2421,19 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	writeSlowLogItem(&buf, GetNeedLockKeysDuration, strconv.FormatFloat(logItems.StmtDetail.GetNeedLockKeysDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, LockTotalInCGODuration, strconv.FormatFloat(logItems.StmtDetail.LockTotalInCGODuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, LockRPCDuration, strconv.FormatFloat(logItems.StmtDetail.LockRPCDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, SelForUpdateExecDuration, strconv.FormatFloat(logItems.StmtDetail.SelForUpdateExecDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, PointGetExecDuration, strconv.FormatFloat(logItems.StmtDetail.PointGetExecDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, PointGetPrepareDuration, strconv.FormatFloat(logItems.StmtDetail.PointGetPrepareDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, PointGetGetValueDureation, strconv.FormatFloat(logItems.StmtDetail.PointGetGetValueDureation.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, PointGetLockeyDuration, strconv.FormatFloat(logItems.StmtDetail.PointGetLockeyDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, ProjUnParallelExecDuration, strconv.FormatFloat(logItems.StmtDetail.ProjUnParallelExecDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, UpdateRowsDuration, strconv.FormatFloat(logItems.StmtDetail.UpdateRowsDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, UpdatePrepareDuraion, strconv.FormatFloat(logItems.StmtDetail.UpdatePrepareDuraion.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, UpdateRowsDuration, strconv.FormatFloat(logItems.StmtDetail.UpdateRowsDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, UpdateChildrenExecDutaion, strconv.FormatFloat(logItems.StmtDetail.UpdateChildrenExecDutaion.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, UpdateUpdateTableDuraiton, strconv.FormatFloat(logItems.StmtDetail.UpdateUpdateTableDuraiton.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, UpdateUpdateOneRecDuration, strconv.FormatFloat(logItems.StmtDetail.UpdateUpdateOneRecDuration.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, UpdateRebuildIndexDuration, strconv.FormatFloat(logItems.StmtDetail.UpdateRebuildIndexDuration.Seconds(), 'f', -1, 64))
 
 	if execDetailStr := logItems.ExecDetail.String(); len(execDetailStr) > 0 {
 		buf.WriteString(SlowLogRowPrefixStr + execDetailStr + "\n")

@@ -17,6 +17,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -202,6 +203,13 @@ func (e *PointGetExecutor) Close() error {
 
 // Next implements the Executor interface.
 func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
+	start := time.Now()
+	stmtExecDetail := GetStmtExecDetails(ctx)
+	defer func() {
+		if stmtExecDetail != nil {
+			stmtExecDetail.PointGetExecDuration = time.Since(start)
+		}
+	}()
 	req.Reset()
 	if e.done {
 		return nil
@@ -289,6 +297,9 @@ func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
 			})
 		}
 	}
+	if stmtExecDetail != nil {
+		stmtExecDetail.PointGetPrepareDuration = time.Since(start)
+	}
 
 	key := tablecodec.EncodeRowKeyWithHandle(tblID, e.handle)
 	val, err := e.getAndLock(ctx, key)
@@ -331,8 +342,10 @@ func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
 }
 
 func (e *PointGetExecutor) getAndLock(ctx context.Context, key kv.Key) (val []byte, err error) {
+	stmtExecDetail := GetStmtExecDetails(ctx)
 	if e.ctx.GetSessionVars().IsPessimisticReadConsistency() {
 		// Only Lock the exist keys in RC isolation.
+		start1 := time.Now()
 		val, err = e.get(ctx, key)
 		if err != nil {
 			if !kv.ErrNotExist.Equal(err) {
@@ -340,9 +353,14 @@ func (e *PointGetExecutor) getAndLock(ctx context.Context, key kv.Key) (val []by
 			}
 			return nil, nil
 		}
+		start2 := time.Now()
 		err = e.lockKeyIfNeeded(ctx, key)
 		if err != nil {
 			return nil, err
+		}
+		if stmtExecDetail != nil {
+			stmtExecDetail.PointGetGetValueDureation = start2.Sub(start1)
+			stmtExecDetail.PointGetLockeyDuration = time.Since(start2)
 		}
 		return val, nil
 	}

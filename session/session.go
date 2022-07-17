@@ -2463,6 +2463,13 @@ func (s *session) DropPreparedStmt(stmtID uint32) error {
 }
 
 func (s *session) Txn(active bool) (kv.Transaction, error) {
+	start1 := time.Now()
+	stmtExecDetails := executor.GetStmtExecDetails(s.currentCtx)
+	defer func() {
+		if stmtExecDetails != nil {
+			stmtExecDetails.StmtTxnTotalDuration += time.Since(start1)
+		}
+	}()
 	if !active {
 		return &s.txn, nil
 	}
