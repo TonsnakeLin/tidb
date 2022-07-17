@@ -226,7 +226,7 @@ func (d ExecDetails) String() string {
 	if lockDetail != nil {
 		parts = append(parts, "lock_rpc_count"+": "+strconv.FormatInt(lockDetail.LockRPCCount, 10))
 		// parts = append(parts, "lock_tikv_time"+": "+strconv.FormatInt(lockDetail.LockTiKVTime, 10))
-		parts = append(parts, "lock_tikv_time"+": "+strconv.FormatFloat(lockDetail.LockTiKVTime/1000000000.0, 'f', -1, 64))
+		parts = append(parts, "lock_tikv_time"+": "+strconv.FormatFloat(float64(lockDetail.LockTiKVTime)/1000000000.0, 'f', -1, 64))
 	}
 
 	return strings.Join(parts, " ")
