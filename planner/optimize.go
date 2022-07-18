@@ -42,6 +42,7 @@ import (
 	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/sessiontxn"
 	"github.com/pingcap/tidb/types"
+	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/hint"
 	"github.com/pingcap/tidb/util/logutil"
 	utilparser "github.com/pingcap/tidb/util/parser"
@@ -317,8 +318,16 @@ func optimize(ctx context.Context, sctx sessionctx.Context, node ast.Node, is in
 	failpoint.Inject("mockRandomPlanID", func() {
 		sctx.GetSessionVars().PlanID = rand.Intn(1000) // nolint:gosec
 	})
-
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+	}
+	start := time.Now()
 	builder := planBuilderPool.Get().(*plannercore.PlanBuilder)
+	if stmtDetail != nil {
+		stmtDetail.PlanBuilderGetTime = time.Since(start)
+	}
 	defer planBuilderPool.Put(builder.ResetForReuse())
 
 	builder.Init(sctx, is, hintProcessor)
@@ -488,8 +497,19 @@ func OptimizeExecStmt(ctx context.Context, sctx sessionctx.Context,
 	execAst *ast.ExecuteStmt, is infoschema.InfoSchema) (plannercore.Plan, error) {
 	defer trace.StartRegion(ctx, "Optimize").End()
 	var err error
+	start := time.Now()
+	var stmtDetail *execdetails.StmtExecDetails
+	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
+	if stmtDetailRaw != nil {
+		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
+	}
 
 	builder := planBuilderPool.Get().(*plannercore.PlanBuilder)
+
+	if stmtDetail != nil {
+		stmtDetail.PlanBuilderGetTime = time.Since(start)
+	}
+
 	defer planBuilderPool.Put(builder.ResetForReuse())
 
 	builder.Init(sctx, is, nil)

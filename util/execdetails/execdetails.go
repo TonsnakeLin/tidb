@@ -77,6 +77,7 @@ type StmtExecDetails struct {
 	UpdateUpdateOneRecDuration    time.Duration
 	UpdateRebuildIndexDuration    time.Duration
 	StmtTxnTotalDuration          time.Duration
+	PlanBuilderGetTime            time.Duration
 }
 
 const (

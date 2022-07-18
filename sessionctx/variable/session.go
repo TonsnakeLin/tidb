@@ -2308,6 +2308,7 @@ const (
 	UpdateUpdateOneRecDuration    = "UpdateUpdateOneRecDuration"
 	UpdateRebuildIndexDuration    = "UpdateRebuildIndexDuration"
 	StmtTxnTotalDuration          = "StmtTxnTotalDuration"
+	PlanBuilderGetTime            = "PlanBuilderGetTime"
 )
 
 // SlowQueryLogItems is a collection of items that should be included in the
@@ -2410,6 +2411,7 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	writeSlowLogItem(&buf, SlowLogOptimizeTimeStr, strconv.FormatFloat(logItems.TimeOptimize.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, SlowLogWaitTSTimeStr, strconv.FormatFloat(logItems.TimeWaitTS.Seconds(), 'f', -1, 64))
 
+	writeSlowLogItem(&buf, PlanBuilderGetTime, strconv.FormatFloat(logItems.StmtDetail.PlanBuilderGetTime.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, PessDMLExecutorTotalDuration, strconv.FormatFloat(logItems.StmtDetail.PessDMLExecutorTotalDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, StmtTxnTotalDuration, strconv.FormatFloat(logItems.StmtDetail.StmtTxnTotalDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, InsertRowsDuration, strconv.FormatFloat(logItems.StmtDetail.InsertRowsDuration.Seconds(), 'f', -1, 64))
