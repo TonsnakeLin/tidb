@@ -203,11 +203,11 @@ func (e *PointGetExecutor) Close() error {
 
 // Next implements the Executor interface.
 func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
-	start := time.Now()
+	start1 := time.Now()
 	stmtExecDetail := GetStmtExecDetails(ctx)
 	defer func() {
 		if stmtExecDetail != nil {
-			stmtExecDetail.PointGetExecDuration = time.Since(start)
+			stmtExecDetail.PointGetExecDuration = time.Since(start1)
 		}
 	}()
 	req.Reset()
@@ -298,7 +298,8 @@ func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
 		}
 	}
 	if stmtExecDetail != nil {
-		stmtExecDetail.PointGetPrepareDuration = time.Since(start)
+		start2 := time.Now()
+		stmtExecDetail.PointGetPrepareDuration = time.Since(start2)
 	}
 
 	key := tablecodec.EncodeRowKeyWithHandle(tblID, e.handle)

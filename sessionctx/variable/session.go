@@ -2429,7 +2429,6 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	writeSlowLogItem(&buf, ProjUnParallelExecDuration, strconv.FormatFloat(logItems.StmtDetail.ProjUnParallelExecDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, UpdateRowsDuration, strconv.FormatFloat(logItems.StmtDetail.UpdateRowsDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, UpdatePrepareDuraion, strconv.FormatFloat(logItems.StmtDetail.UpdatePrepareDuraion.Seconds(), 'f', -1, 64))
-	writeSlowLogItem(&buf, UpdateRowsDuration, strconv.FormatFloat(logItems.StmtDetail.UpdateRowsDuration.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, UpdateChildrenExecDutaion, strconv.FormatFloat(logItems.StmtDetail.UpdateChildrenExecDutaion.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, UpdateUpdateTableDuraiton, strconv.FormatFloat(logItems.StmtDetail.UpdateUpdateTableDuraiton.Seconds(), 'f', -1, 64))
 	writeSlowLogItem(&buf, UpdateUpdateOneRecDuration, strconv.FormatFloat(logItems.StmtDetail.UpdateUpdateOneRecDuration.Seconds(), 'f', -1, 64))
