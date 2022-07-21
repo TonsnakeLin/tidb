@@ -207,7 +207,7 @@ func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
 	stmtExecDetail := GetStmtExecDetails(ctx)
 	defer func() {
 		if stmtExecDetail != nil {
-			stmtExecDetail.PointGetExecDuration = time.Since(start1)
+			stmtExecDetail.PointGetExecDuration += time.Since(start1)
 		}
 	}()
 	req.Reset()
@@ -299,7 +299,7 @@ func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
 	}
 	if stmtExecDetail != nil {
 		start2 := time.Now()
-		stmtExecDetail.PointGetPrepareDuration = time.Since(start2)
+		stmtExecDetail.PointGetPrepareDuration += time.Since(start2)
 	}
 
 	key := tablecodec.EncodeRowKeyWithHandle(tblID, e.handle)
@@ -366,11 +366,17 @@ func (e *PointGetExecutor) getAndLock(ctx context.Context, key kv.Key) (val []by
 		return val, nil
 	}
 	// Lock the key before get in RR isolation, then get will get the value from the cache.
+	start1 := time.Now()
 	err = e.lockKeyIfNeeded(ctx, key)
 	if err != nil {
 		return nil, err
 	}
+	start2 := time.Now()
 	val, err = e.get(ctx, key)
+	if stmtExecDetail != nil {
+		stmtExecDetail.PointGetLockeyDuration = start2.Sub(start1)
+		stmtExecDetail.PointGetGetValueDureation = time.Since(start2)
+	}
 	if err != nil {
 		if !kv.ErrNotExist.Equal(err) {
 			return nil, err
