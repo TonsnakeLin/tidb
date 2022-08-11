@@ -376,7 +376,7 @@ func (e *PointGetExecutor) getAndLock(ctx context.Context, key kv.Key) (val []by
 				}
 				return nil, nil
 			}
-			err = e.lockKeyIfNeeded(ctx, key)
+			_, err = e.lockKeyIfNeeded(ctx, key, false)
 			if err != nil {
 				return nil, err
 			}
