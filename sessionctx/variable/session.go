@@ -1158,6 +1158,7 @@ type SessionVars struct {
 	RcReadCheckTS         bool
 	EnableCollectLockInfo bool
 	InsertSkipUpdateTs    bool
+	EnableLockIfExists    bool
 	// RemoveOrderbyInSubquery indicates whether to remove ORDER BY in subquery.
 	RemoveOrderbyInSubquery bool
 	// NonTransactionalIgnoreError indicates whether to ignore error in non-transactional statements.

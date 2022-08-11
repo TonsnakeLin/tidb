@@ -1662,6 +1662,10 @@ var defaultSysVars = []*SysVar{
 		s.InsertSkipUpdateTs = TiDBOptOn(val)
 		return nil
 	}},
+	{Scope: ScopeGlobal | ScopeSession, Name: TiDBEnableLockIfExists, Type: TypeBool, Value: BoolToOnOff(DefTiDBEnableLockIfExists), SetSession: func(s *SessionVars, val string) error {
+		s.EnableLockIfExists = TiDBOptOn(val)
+		return nil
+	}},
 	{Scope: ScopeGlobal | ScopeSession, Name: TiDBEnableCollectionLockInfo, Type: TypeBool, Value: BoolToOnOff(DefTiDBEnableCollectionLockInfo), SetSession: func(s *SessionVars, val string) error {
 		s.EnableCollectLockInfo = TiDBOptOn(val)
 		return nil

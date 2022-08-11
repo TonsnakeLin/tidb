@@ -786,6 +786,7 @@ const (
 	TiDBEnableGCAwareMemoryTrack = "tidb_enable_gc_aware_memory_track"
 	TiDBEnableCollectionLockInfo = "tidb_enable_collect_lock_info"
 	TiDBInsertSkipUpdateTS       = "tidb_insert_skip_update_ts"
+	TiDBEnableLockIfExists       = "tidb_enable_lock_if_exists"
 )
 
 // TiDB intentional limits
@@ -1000,6 +1001,7 @@ const (
 	DefTiDBDefaultStrMatchSelectivity              = 0.8
 	DefTiDBEnableCollectionLockInfo                = true
 	DefTiDBInsertSkipUpdateTs                      = false
+	DefTiDBEnableLockIfExists                      = false
 )
 
 // Process global variables.
