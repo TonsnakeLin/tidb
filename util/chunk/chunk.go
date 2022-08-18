@@ -15,6 +15,7 @@
 package chunk
 
 import (
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/pingcap/errors"
@@ -48,6 +49,9 @@ type Chunk struct {
 
 	// requiredRows indicates how many rows the parent executor want.
 	requiredRows int
+
+	// only use for chunk cached
+	inUse int32
 }
 
 // Capacity constants.
@@ -104,7 +108,13 @@ func renewWithCapacity(chk *Chunk, capacity, requiredRows int) *Chunk {
 //	maxChunkSize: the limit for the max number of rows.
 func Renew(chk *Chunk, maxChunkSize int) *Chunk {
 	newCap := reCalcCapacity(chk, maxChunkSize)
-	return renewWithCapacity(chk, newCap, maxChunkSize)
+	if newCap == chk.capacity {
+		chk.Reset()
+		return chk
+	}
+	newChk := renewWithCapacity(chk, newCap, maxChunkSize)
+	chk.SetInUse(0)
+	return newChk
 }
 
 // renewColumns creates the columns of a Chunk. The capacity of the newly
@@ -140,6 +150,14 @@ func (c *Chunk) resetForReuse() {
 	columns := c.columns[:0]
 	// Keep only the empty columns array space, reset other fields.
 	*c = Chunk{columns: columns}
+}
+
+func (c *Chunk) SetInUse(val int32) {
+	atomic.StoreInt32(&c.inUse, val)
+}
+
+func (c *Chunk) GetInUse() bool {
+	return atomic.LoadInt32(&c.inUse) > 0
 }
 
 // MemoryUsage returns the total memory usage of a Chunk in bytes.

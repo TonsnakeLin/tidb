@@ -25,6 +25,7 @@ import (
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/sessionctx"
+	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/logutil"
@@ -293,6 +294,13 @@ func (e *ProjectionExec) drainOutputCh(ch chan *projectionOutput) {
 	}
 }
 
+func (e *ProjectionExec) UseCachedChunk() bool {
+	if e.isUnparallelExec() {
+		return true
+	}
+	return false
+}
+
 // Close implements the Executor Close interface.
 func (e *ProjectionExec) Close() error {
 	// if e.baseExecutor.Open returns error, e.childResult will be nil, see https://github.com/pingcap/tidb/issues/24210
@@ -300,6 +308,9 @@ func (e *ProjectionExec) Close() error {
 	if e.isUnparallelExec() && e.childResult != nil {
 		e.memTracker.Consume(-e.childResult.MemoryUsage())
 		e.childResult = nil
+	}
+	if e.UseCachedChunk() {
+		e.ctx.GetSessionVars().ResetCachedChunkStatus(variable.HashFieldTypes(e.retFieldTypes), e.retFieldTypes)
 	}
 	if e.prepared {
 		close(e.finishCh)

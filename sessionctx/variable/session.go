@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"math/rand"
 	"net"
@@ -48,6 +49,7 @@ import (
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/kvcache"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/mathutil"
 	"github.com/pingcap/tidb/util/rowcodec"
 	"github.com/pingcap/tidb/util/stringutil"
@@ -608,6 +610,12 @@ type SessionVars struct {
 	// PreparedParams params for prepared statements
 	PreparedParams    PreparedParams
 	LastUpdateTime4PC types.Time
+
+	// chunk cache
+	SmallChunkCache struct {
+		sync.RWMutex
+		ChunkCache map[uint64]*SmallChunkCacheEntry
+	}
 
 	// ActiveRoles stores active roles for current user
 	ActiveRoles []*auth.RoleIdentity
@@ -1247,6 +1255,101 @@ func (s *SessionVars) GetPreparedStmtByID(stmtID uint32) (interface{}, error) {
 	return stmt, nil
 }
 
+func (s *SessionVars) GetCachedChunk(fldHash uint64, fieldTypes []*types.FieldType) (*chunk.Chunk, bool) {
+	s.SmallChunkCache.RLock()
+	chunkEntry, ok := s.SmallChunkCache.ChunkCache[fldHash]
+	s.SmallChunkCache.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+
+	// Is this Lock too heavy? the conflict is rare.
+	chunkEntry.Lock()
+	for _, element := range chunkEntry.Elements {
+		if isSameFieldTypes(fieldTypes, element.retFieldTypes) {
+			chunkEntry.Unlock()
+			if !element.chunk.GetInUse() {
+				element.chunk.SetInUse(1)
+				return element.chunk, true
+			}
+			return nil, true
+		}
+	}
+	chunkEntry.Unlock()
+
+	return nil, false
+}
+
+func (s *SessionVars) PutCachedChunk(fldHash uint64, fieldTypes []*types.FieldType, chunkToPut *chunk.Chunk) {
+	s.SmallChunkCache.RLock()
+	chunkEntry, ok := s.SmallChunkCache.ChunkCache[fldHash]
+	s.SmallChunkCache.RUnlock()
+	chunkToPut.SetInUse(1)
+
+	element := &ChunkCacheElement{
+		retFieldTypes: fieldTypes,
+		chunk:         chunkToPut,
+	}
+
+	if !ok {
+		newchunkEntry := &SmallChunkCacheEntry{
+			Elements: []*ChunkCacheElement{element},
+		}
+		s.SmallChunkCache.Lock()
+		s.SmallChunkCache.ChunkCache[fldHash] = newchunkEntry
+		s.SmallChunkCache.Unlock()
+		return
+	}
+
+	// hash conflict
+	chunkEntry.Lock()
+
+	for _, element := range chunkEntry.Elements {
+		if isSameFieldTypes(fieldTypes, element.retFieldTypes) {
+			chunkEntry.Unlock()
+			logutil.BgLogger().Error("chunk has already cached")
+			return
+		}
+	}
+
+	chunkEntry.Elements = append(chunkEntry.Elements, element)
+	chunkEntry.Unlock()
+}
+
+func (s *SessionVars) ResetCachedChunkStatus(fldHash uint64, fieldTypes []*types.FieldType) {
+	s.SmallChunkCache.RLock()
+	chunkEntry, ok := s.SmallChunkCache.ChunkCache[fldHash]
+	s.SmallChunkCache.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	// Is this Lock too heavy? the conflict is rare.
+	chunkEntry.Lock()
+	for _, element := range chunkEntry.Elements {
+		if isSameFieldTypes(fieldTypes, element.retFieldTypes) {
+			chunkEntry.Unlock()
+			element.chunk.SetInUse(0)
+			return
+		}
+	}
+	chunkEntry.Unlock()
+}
+
+func isSameFieldTypes(src []*types.FieldType, dst []*types.FieldType) bool {
+	if len(src) != len(dst) {
+		return false
+	}
+	for i := range src {
+		if src[i].GetType() != dst[i].GetType() {
+			return false
+		}
+	}
+	return true
+}
+
 // InitStatementContext initializes a StatementContext, the object is reused to reduce allocation.
 func (s *SessionVars) InitStatementContext() *stmtctx.StatementContext {
 	s.cached.curr = (s.cached.curr + 1) % 2
@@ -1394,6 +1497,24 @@ type ConnectionInfo struct {
 	SSLVersion        string
 	PID               int
 	DB                string
+}
+
+type ChunkCacheElement struct {
+	retFieldTypes []*types.FieldType
+	chunk         *chunk.Chunk
+}
+
+type SmallChunkCacheEntry struct {
+	sync.Mutex
+	Elements []*ChunkCacheElement
+}
+
+func HashFieldTypes(fieldTypes []*types.FieldType) uint64 {
+	h := fnv.New64()
+	for _, t := range fieldTypes {
+		h.Write([]byte{t.GetType()})
+	}
+	return h.Sum64()
 }
 
 const (

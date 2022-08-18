@@ -92,6 +92,9 @@ func (e *DeleteExec) deleteSingleTableByChunk(ctx context.Context) error {
 		variable.EnableBatchDML.Load() && batchDMLSize > 0
 	fields := retTypes(e.children[0])
 	chk := newFirstChunk(e.children[0])
+	defer func() {
+		chk.SetInUse(0)
+	}()
 	columns := e.children[0].Schema().Columns
 	if len(columns) != len(fields) {
 		logutil.BgLogger().Error("schema columns and fields mismatch",
@@ -247,6 +250,7 @@ func (e *DeleteExec) removeRow(ctx sessionctx.Context, t table.Table, h kv.Handl
 // Close implements the Executor Close interface.
 func (e *DeleteExec) Close() error {
 	defer e.memTracker.ReplaceBytesUsed(0)
+	e.ctx.GetSessionVars().ResetCachedChunkStatus(variable.HashFieldTypes(e.retFieldTypes), e.retFieldTypes)
 	return e.children[0].Close()
 }
 
@@ -256,6 +260,10 @@ func (e *DeleteExec) Open(ctx context.Context) error {
 	e.memTracker.AttachTo(e.ctx.GetSessionVars().StmtCtx.MemTracker)
 
 	return e.children[0].Open(ctx)
+}
+
+func (e *DeleteExec) UseCachedChunk() bool {
+	return true
 }
 
 // tableRowMapType is a map for unique (Table, Row) pair. key is the tableID.

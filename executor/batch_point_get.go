@@ -156,6 +156,10 @@ func MockNewCacheTableSnapShot(snapshot kv.Snapshot, memBuffer kv.MemBuffer) *ca
 	return &cacheTableSnapshot{snapshot, memBuffer}
 }
 
+func (e *BatchPointGetExec) UseCachedChunk() bool {
+	return true
+}
+
 // Close implements the Executor interface.
 func (e *BatchPointGetExec) Close() error {
 	if e.runtimeStats != nil && e.snapshot != nil {
@@ -163,6 +167,7 @@ func (e *BatchPointGetExec) Close() error {
 	}
 	e.inited = 0
 	e.index = 0
+	e.ctx.GetSessionVars().ResetCachedChunkStatus(variable.HashFieldTypes(e.retFieldTypes), e.retFieldTypes)
 	return nil
 }
 

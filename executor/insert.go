@@ -27,6 +27,7 @@ import (
 	"github.com/pingcap/tidb/meta/autoid"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/parser/mysql"
+	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/table"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/types"
@@ -318,6 +319,7 @@ func (e *InsertExec) Close() error {
 	e.ctx.GetSessionVars().CurrInsertValues = chunk.Row{}
 	e.ctx.GetSessionVars().CurrInsertBatchExtraCols = e.ctx.GetSessionVars().CurrInsertBatchExtraCols[0:0:0]
 	e.setMessage()
+	e.ctx.GetSessionVars().ResetCachedChunkStatus(variable.HashFieldTypes(e.retFieldTypes), e.retFieldTypes)
 	if e.SelectExec != nil {
 		return e.SelectExec.Close()
 	}
@@ -339,6 +341,10 @@ func (e *InsertExec) Open(ctx context.Context) error {
 		e.initEvalBuffer()
 	}
 	return nil
+}
+
+func (e *InsertExec) UseCachedChunk() bool {
+	return true
 }
 
 func (e *InsertExec) initEvalBuffer4Dup() {

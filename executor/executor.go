@@ -208,9 +208,19 @@ func (e *baseExecutor) Open(ctx context.Context) error {
 	return nil
 }
 
+func (e *baseExecutor) UseCachedChunk() bool {
+	return false
+}
+
 // Close closes all executors and release all resources.
 func (e *baseExecutor) Close() error {
 	var firstErr error
+
+	if e.UseCachedChunk() {
+		e.ctx.GetSessionVars().ResetCachedChunkStatus(variable.HashFieldTypes(e.retFieldTypes),
+			e.retFieldTypes)
+	}
+
 	for _, src := range e.children {
 		if err := src.Close(); err != nil && firstErr == nil {
 			firstErr = err
@@ -230,7 +240,26 @@ func (e *baseExecutor) Schema() *expression.Schema {
 // newFirstChunk creates a new chunk to buffer current executor's result.
 func newFirstChunk(e Executor) *chunk.Chunk {
 	base := e.base()
-	return chunk.New(base.retFieldTypes, base.initCap, base.maxChunkSize)
+	if !e.UseCachedChunk() {
+		return chunk.New(base.retFieldTypes, base.initCap, base.maxChunkSize)
+	}
+
+	hv := variable.HashFieldTypes(base.retFieldTypes)
+	chk, ok := base.ctx.GetSessionVars().GetCachedChunk(hv, base.retFieldTypes)
+	if chk != nil {
+		chk.Reset()
+		return chk
+	}
+
+	chk = chunk.New(base.retFieldTypes, base.initCap, base.maxChunkSize)
+	if ok {
+		// Only caches one chunk, the cached chunk is used, makes a new chunk and doensn't cache
+		return chk
+	}
+
+	base.ctx.GetSessionVars().PutCachedChunk(hv, base.retFieldTypes, chk)
+
+	return chk
 }
 
 // newList creates a new List to buffer current executor's result.
@@ -294,6 +323,7 @@ type Executor interface {
 	base() *baseExecutor
 	Open(context.Context) error
 	Next(ctx context.Context, req *chunk.Chunk) error
+	UseCachedChunk() bool
 	Close() error
 	Schema() *expression.Schema
 }
@@ -1130,6 +1160,10 @@ func (e *SelectLockExec) Open(ctx context.Context) error {
 		}
 	}
 	return e.baseExecutor.Open(ctx)
+}
+
+func (e *SelectLockExec) UseCachedChunk() bool {
+	return true
 }
 
 // Next implements the Executor Next interface.

@@ -28,6 +28,7 @@ import (
 	"github.com/pingcap/tidb/parser/mysql"
 	plannercore "github.com/pingcap/tidb/planner/core"
 	"github.com/pingcap/tidb/sessionctx"
+	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/table"
 	"github.com/pingcap/tidb/table/tables"
 	"github.com/pingcap/tidb/tablecodec"
@@ -205,7 +206,12 @@ func (e *PointGetExecutor) Close() error {
 		e.ctx.StoreIndexUsage(e.tblInfo.ID, e.idxInfo.ID, actRows)
 	}
 	e.done = false
+	e.ctx.GetSessionVars().ResetCachedChunkStatus(variable.HashFieldTypes(e.retFieldTypes), e.retFieldTypes)
 	return nil
+}
+
+func (e *PointGetExecutor) UseCachedChunk() bool {
+	return true
 }
 
 // Next implements the Executor interface.
