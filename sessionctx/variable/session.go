@@ -612,10 +612,7 @@ type SessionVars struct {
 	LastUpdateTime4PC types.Time
 
 	// chunk cache
-	SmallChunkCache struct {
-		sync.RWMutex
-		ChunkCache map[uint64]*SmallChunkCacheEntry
-	}
+	SmallChunkCache *SmallChunkCacheType
 
 	// ActiveRoles stores active roles for current user
 	ActiveRoles []*auth.RoleIdentity
@@ -1509,6 +1506,11 @@ type SmallChunkCacheEntry struct {
 	Elements []*ChunkCacheElement
 }
 
+type SmallChunkCacheType struct {
+	sync.RWMutex
+	ChunkCache map[uint64]*SmallChunkCacheEntry
+}
+
 func HashFieldTypes(fieldTypes []*types.FieldType) uint64 {
 	h := fnv.New64()
 	for _, t := range fieldTypes {
@@ -1633,6 +1635,7 @@ func NewSessionVars() *SessionVars {
 		RemoveOrderbyInSubquery:     DefTiDBRemoveOrderbyInSubquery,
 		EnableSkewDistinctAgg:       DefTiDBSkewDistinctAgg,
 		MaxAllowedPacket:            DefMaxAllowedPacket,
+		SmallChunkCache:             &SmallChunkCacheType{ChunkCache: make(map[uint64]*SmallChunkCacheEntry)},
 	}
 	vars.KVVars = tikvstore.NewVariables(&vars.Killed)
 	vars.Concurrency = Concurrency{
