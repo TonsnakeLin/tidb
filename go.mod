@@ -244,3 +244,9 @@ replace (
 	github.com/pingcap/tidb/parser => ./parser
 	go.opencensus.io => go.opencensus.io v0.23.1-0.20220331163232-052120675fac
 )
+
+replace github.com/tikv/client-go/v2 => github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221026133510-9e222ef87640
+
+replace github.com/pingcap/tipb => github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f
+
+replace github.com/pingcap/kvproto => github.com/TonsnakeLin/kvproto v0.0.0-20221025073249-95a3ca9c6662
