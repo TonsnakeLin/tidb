@@ -377,11 +377,15 @@ func (e *PointGetExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
 		}
 		return nil
 	}
-	err = DecodeRowValToChunk(e.base().ctx, e.schema, e.tblInfo, e.handle, val, req, e.rowDecoder)
-	if err != nil {
-		return err
+	if e.useRpcChunk {
+		respChunkDecoder := chunk.NewDecoder(req, e.retFieldTypes)
+		respChunkDecoder.Reset(val)
+	} else {
+		err = DecodeRowValToChunk(e.base().ctx, e.schema, e.tblInfo, e.handle, val, req, e.rowDecoder)
+		if err != nil {
+			return err
+		}
 	}
-
 	err = FillVirtualColumnValue(e.virtualColumnRetFieldTypes, e.virtualColumnIndex,
 		e.schema, e.columns, e.ctx, req)
 	if err != nil {
@@ -504,6 +508,7 @@ func (e *PointGetExecutor) get(ctx context.Context, key kv.Key) ([]byte, error) 
 	if e.txn.Valid() && !e.txn.IsReadOnly() {
 		// We cannot use txn.Get directly here because the snapshot in txn and the snapshot of e.snapshot may be
 		// different for pessimistic transaction.
+		e.useRpcChunk = false
 		val, err = e.txn.GetMemBuffer().Get(ctx, key)
 		if err == nil {
 			return val, err
