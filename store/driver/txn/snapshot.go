@@ -135,6 +135,8 @@ func (s *tikvSnapshot) SetOption(opt int, val interface{}) {
 		if size > 0 {
 			s.KVSnapshot.SetScanBatchSize(size)
 		}
+	case kv.UseChunkRpc:
+		s.KVSnapshot.SetUseRpcChunk(val.([]byte))
 	}
 }
 

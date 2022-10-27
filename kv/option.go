@@ -93,6 +93,8 @@ const (
 	ReplicaReadAdjuster
 	// ScanBatchSize set the iter scan batch size.
 	ScanBatchSize
+	// UseChunkRpc set get request using chunk format
+	UseChunkRpc
 )
 
 // ReplicaReadType is the type of replica to read data from

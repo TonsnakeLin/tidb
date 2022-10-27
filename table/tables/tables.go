@@ -1942,6 +1942,19 @@ func BuildTableScanFromInfos(tableInfo *model.TableInfo, columnInfos []*model.Co
 	return tsExec
 }
 
+func BuildTableInfoDetailFromInfos(tableInfo *model.TableInfo, columnInfos []*model.ColumnInfo) *tipb.TableInfoDetail {
+	pkColIds := TryGetCommonPkColumnIds(tableInfo)
+	tabInfoDetail := &tipb.TableInfoDetail{
+		TableId:          tableInfo.ID,
+		Columns:          util.ColumnsToProto(columnInfos, tableInfo.PKIsHandle),
+		PrimaryColumnIds: pkColIds,
+	}
+	if tableInfo.IsCommonHandle {
+		tabInfoDetail.PrimaryPrefixColumnIds = PrimaryPrefixColumnIDs(tableInfo)
+	}
+	return tabInfoDetail
+}
+
 // BuildPartitionTableScanFromInfos build tipb.PartitonTableScan with *model.TableInfo and *model.ColumnInfo.
 func BuildPartitionTableScanFromInfos(tableInfo *model.TableInfo, columnInfos []*model.ColumnInfo, fastScan bool) *tipb.PartitionTableScan {
 	pkColIds := TryGetCommonPkColumnIds(tableInfo)

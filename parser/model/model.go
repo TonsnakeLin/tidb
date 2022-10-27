@@ -1008,6 +1008,16 @@ func (t *TableInfo) IsBaseTable() bool {
 	return t.Sequence == nil && t.View == nil
 }
 
+// GetColumnByID gets the column by column id from TableInfo
+func (t *TableInfo) GetColumnByID(id int64) *ColumnInfo {
+	for _, col := range t.Columns {
+		if col.ID == id {
+			return col
+		}
+	}
+	return nil
+}
+
 // ViewAlgorithm is VIEW's SQL ALGORITHM characteristic.
 // See https://dev.mysql.com/doc/refman/5.7/en/view-algorithms.html
 type ViewAlgorithm int

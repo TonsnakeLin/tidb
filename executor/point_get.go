@@ -38,6 +38,7 @@ import (
 	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/logutil/consistency"
 	"github.com/pingcap/tidb/util/rowcodec"
+	"github.com/pingcap/tipb/go-tipb"
 	"github.com/tikv/client-go/v2/txnkv/txnsnapshot"
 )
 
@@ -71,6 +72,11 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 		b.err = err
 		return nil
 	}
+	if err = e.buildGetReqMeta(p); err != nil {
+		b.err = err
+		return nil
+	}
+
 	if b.ctx.GetSessionVars().IsReplicaReadClosestAdaptive() {
 		e.snapshot.SetOption(kv.ReplicaReadAdjuster, newReplicaReadAdjuster(e.ctx, p.GetAvgRowSize()))
 	}
@@ -113,6 +119,32 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 	return e
 }
 
+func (e *PointGetExecutor) buildGetReqMeta(p *plannercore.PointGetPlan) error {
+	var err error
+	if !e.lock && (e.idxInfo == nil || isCommonHandleRead(e.tblInfo, e.idxInfo)) {
+		pointGetReq := &tipb.PointGet{}
+		pointGetReq.EncodeType = tipb.EncodeType_TypeChunk
+		columnInfos := make([]*model.ColumnInfo, len(p.Schema().Columns))
+		for i, col := range p.Schema().Columns {
+			colInfo := p.TblInfo.GetColumnByID(col.ID)
+			if colInfo == nil {
+				return errors.New("It can't find the column from table")
+			}
+			columnInfos = append(columnInfos, colInfo)
+			pointGetReq.OutputOffsets = append(pointGetReq.OutputOffsets, uint32(i))
+
+		}
+		tblInfoDetail := tables.BuildTableInfoDetailFromInfos(e.tblInfo, columnInfos)
+		if e.partInfo != nil {
+			tblInfoDetail.TableId = e.partInfo.ID
+		}
+		pointGetReq.ReadTable = tblInfoDetail
+		e.pointGetReqMarShal, err = pointGetReq.Marshal()
+	}
+
+	return err
+}
+
 // PointGetExecutor executes point select query.
 type PointGetExecutor struct {
 	baseExecutor
@@ -143,6 +175,9 @@ type PointGetExecutor struct {
 	virtualColumnRetFieldTypes []*types.FieldType
 
 	stats *runtimeStatsWithSnapshot
+
+	pointGetReqMarShal []byte
+	useRpcChunk        bool
 }
 
 // Init set fields needed for PointGetExecutor reuse, this does NOT change baseExecutor field
@@ -499,6 +534,10 @@ func (e *PointGetExecutor) get(ctx context.Context, key kv.Key) ([]byte, error) 
 		}
 	}
 	// if not read lock or table was unlock then snapshot get
+	if e.pointGetReqMarShal != nil {
+		e.snapshot.SetOption(kv.UseChunkRpc, e.pointGetReqMarShal)
+		e.useRpcChunk = true
+	}
 	return e.snapshot.Get(ctx, key)
 }
 
