@@ -395,6 +395,7 @@ func TLSCipher2String(n uint16) string {
 
 // ColumnsToProto converts a slice of model.ColumnInfo to a slice of tipb.ColumnInfo.
 func ColumnsToProto(columns []*model.ColumnInfo, pkIsHandle bool) []*tipb.ColumnInfo {
+	// fmt.Println("ColumnsToProto::columns:", columns)
 	cols := make([]*tipb.ColumnInfo, 0, len(columns))
 	for _, c := range columns {
 		col := ColumnToProto(c)

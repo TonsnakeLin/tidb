@@ -121,6 +121,9 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 
 func (e *PointGetExecutor) buildGetReqMeta(p *plannercore.PointGetPlan) error {
 	var err error
+	if e.ctx.GetSessionVars().InRestrictedSQL {
+		return nil
+	}
 	if !e.lock && (e.idxInfo == nil || isCommonHandleRead(e.tblInfo, e.idxInfo)) {
 		pointGetReq := &tipb.PointGet{}
 		pointGetReq.EncodeType = tipb.EncodeType_TypeChunk
@@ -130,7 +133,7 @@ func (e *PointGetExecutor) buildGetReqMeta(p *plannercore.PointGetPlan) error {
 			if colInfo == nil {
 				return errors.New("It can't find the column from table")
 			}
-			columnInfos = append(columnInfos, colInfo)
+			columnInfos[i] = colInfo
 			pointGetReq.OutputOffsets = append(pointGetReq.OutputOffsets, uint32(i))
 
 		}
