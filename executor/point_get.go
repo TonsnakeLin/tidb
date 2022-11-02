@@ -72,9 +72,12 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 		b.err = err
 		return nil
 	}
-	if err = e.buildGetReqMeta(p); err != nil {
-		b.err = err
-		return nil
+
+	if b.ctx.GetSessionVars().EnableGetReqChunkRpc {
+		if err = e.buildGetReqMeta(p); err != nil {
+			b.err = err
+			return nil
+		}
 	}
 
 	if b.ctx.GetSessionVars().IsReplicaReadClosestAdaptive() {

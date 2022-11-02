@@ -882,6 +882,8 @@ type SessionVars struct {
 	// EnableOuterJoinWithJoinReorder enables TiDB to involve the outer join into the join reorder.
 	EnableOuterJoinReorder bool
 
+	EnableGetReqChunkRpc bool
+
 	// OptimizerEnableNAAJ enables TiDB to use null-aware anti join.
 	OptimizerEnableNAAJ bool
 

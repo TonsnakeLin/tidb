@@ -153,6 +153,8 @@ const (
 
 	TiDBOptimizerEnableOuterJoinReorder = "tidb_enable_outer_join_reorder"
 
+	TiDBEnableGetReqChunkRpc = "tidb_enable_get_reuqest_chunk_rpc"
+
 	// TiDBOptimizerEnableNAAJ is used to open the newly null-aware anti join
 	TiDBOptimizerEnableNAAJ = "tidb_enable_null_aware_anti_join"
 
@@ -910,6 +912,7 @@ const (
 	DefTiDBOptimizerSelectivityLevel               = 0
 	DefTiDBOptimizerEnableNewOFGB                  = false
 	DefTiDBEnableOuterJoinReorder                  = false
+	DefTiDBEnableGetReqChunkRpc                    = true
 	DefTiDBEnableNAAJ                              = false
 	DefTiDBAllowBatchCop                           = 1
 	DefTiDBAllowMPPExecution                       = true

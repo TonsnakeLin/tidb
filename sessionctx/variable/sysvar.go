@@ -235,6 +235,10 @@ var defaultSysVars = []*SysVar{
 		s.EnableOuterJoinReorder = TiDBOptOn(val)
 		return nil
 	}},
+	{Scope: ScopeGlobal | ScopeSession, Name: TiDBEnableGetReqChunkRpc, Value: BoolToOnOff(DefTiDBEnableGetReqChunkRpc), Type: TypeBool, SetSession: func(s *SessionVars, val string) error {
+		s.EnableGetReqChunkRpc = TiDBOptOn(val)
+		return nil
+	}},
 	{Scope: ScopeGlobal | ScopeSession, Name: TiDBOptimizerEnableNAAJ, Value: BoolToOnOff(DefTiDBEnableNAAJ), Type: TypeBool, SetSession: func(s *SessionVars, val string) error {
 		s.OptimizerEnableNAAJ = TiDBOptOn(val)
 		return nil
