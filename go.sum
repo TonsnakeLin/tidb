@@ -100,6 +100,8 @@ github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221027030938-d3e0fe14001d h1:ujd6
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221027030938-d3e0fe14001d/go.mod h1:wQ19lXgtiFecpgNJyVGOkDzffkewkZL8udVISzB26hQ=
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221104063018-48937c1b3242 h1:uoYG0DhKCq0BJsL6R+1WoeQOFPef8nS/BjQJ/sEkz2g=
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221104063018-48937c1b3242/go.mod h1:wQ19lXgtiFecpgNJyVGOkDzffkewkZL8udVISzB26hQ=
+github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221104070417-c00281fc0ecb h1:8Vs1g402+l1Y7lUenLQAg7Pnmc5yeFVe9Vdrxs0fnq4=
+github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221104070417-c00281fc0ecb/go.mod h1:wQ19lXgtiFecpgNJyVGOkDzffkewkZL8udVISzB26hQ=
 github.com/TonsnakeLin/kvproto v0.0.0-20221025073249-95a3ca9c6662 h1:WtlvG49muf1OK6wlBcYOTUeDhlrN4blv3JP21ZwQBnE=
 github.com/TonsnakeLin/kvproto v0.0.0-20221025073249-95a3ca9c6662/go.mod h1:OYtxs0786qojVTmkVeufx93xe+jUgm56GUYRIKnmaGI=
 github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f h1:PI13M5HoBUWS1mmC5xEwOIhdgo7N7PoJJqkBxPq7Gsc=
