@@ -103,10 +103,11 @@ func GeneratePlanCacheStmtWithAST(ctx context.Context, sctx sessionctx.Context, 
 	}
 
 	prepared := &ast.Prepared{
-		Stmt:          stmt,
-		StmtType:      ast.GetStmtLabel(stmt),
-		Params:        extractor.markers,
-		SchemaVersion: ret.InfoSchema.SchemaMetaVersion(),
+		Stmt:           stmt,
+		StmtType:       ast.GetStmtLabel(stmt),
+		Params:         extractor.markers,
+		SchemaVersion:  ret.InfoSchema.SchemaMetaVersion(),
+		IsReadOnlyStmt: IsReadOnly(stmt, sctx.GetSessionVars()),
 	}
 	normalizedSQL, digest := parser.NormalizeDigest(prepared.Stmt.Text())
 

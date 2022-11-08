@@ -49,15 +49,23 @@ import (
 
 // IsReadOnly check whether the ast.Node is a read only statement.
 func IsReadOnly(node ast.Node, vars *variable.SessionVars) bool {
+	if vars.StmtCtx.IsReadOnlySet {
+		return vars.StmtCtx.IsReadOnly
+	}
+
 	if execStmt, isExecStmt := node.(*ast.ExecuteStmt); isExecStmt {
 		prepareStmt, err := core.GetPreparedStmt(execStmt, vars)
 		if err != nil {
 			logutil.BgLogger().Warn("GetPreparedStmt failed", zap.Error(err))
 			return false
 		}
-		return ast.IsReadOnly(prepareStmt.PreparedAst.Stmt)
+		vars.StmtCtx.IsReadOnly = prepareStmt.PreparedAst.IsReadOnlyStmt
+		vars.StmtCtx.IsReadOnlySet = true
+		return vars.StmtCtx.IsReadOnly
 	}
-	return ast.IsReadOnly(node)
+	vars.StmtCtx.IsReadOnly = ast.IsReadOnly(node)
+	vars.StmtCtx.IsReadOnlySet = true
+	return vars.StmtCtx.IsReadOnly
 }
 
 func matchSQLBinding(sctx sessionctx.Context, stmtNode ast.StmtNode) (bindRecord *bindinfo.BindRecord, scope string, matched bool) {

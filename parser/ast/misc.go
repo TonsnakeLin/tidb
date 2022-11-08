@@ -502,13 +502,14 @@ func (n *DeallocateStmt) Accept(v Visitor) (Node, bool) {
 
 // Prepared represents a prepared statement.
 type Prepared struct {
-	Stmt          StmtNode
-	StmtType      string
-	Params        []ParamMarkerExpr
-	SchemaVersion int64
-	UseCache      bool
-	CachedPlan    interface{}
-	CachedNames   interface{}
+	Stmt           StmtNode
+	StmtType       string
+	Params         []ParamMarkerExpr
+	SchemaVersion  int64
+	UseCache       bool
+	CachedPlan     interface{}
+	CachedNames    interface{}
+	IsReadOnlyStmt bool
 }
 
 // ExecuteStmt is a statement to execute PreparedStmt.

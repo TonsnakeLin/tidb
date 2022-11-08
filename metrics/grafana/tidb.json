@@ -15751,7 +15751,7 @@
           "legend": {
             "alignAsTable": true,
             "avg": true,
-            "current": true,
+            "current": false,
             "max": false,
             "min": false,
             "rightSide": false,
@@ -15962,7 +15962,7 @@
           "legend": {
             "alignAsTable": true,
             "avg": true,
-            "current": true,
+            "current": false,
             "max": false,
             "min": false,
             "rightSide": false,

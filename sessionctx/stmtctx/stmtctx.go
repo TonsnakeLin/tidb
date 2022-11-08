@@ -313,7 +313,8 @@ type StatementContext struct {
 	// IsSQLAndPlanRegistered uses to indicate whether the SQL and plan has been registered for TopSQL.
 	IsSQLAndPlanRegistered atomic2.Bool
 	// IsReadOnly uses to indicate whether the SQL is read-only.
-	IsReadOnly bool
+	IsReadOnly    bool
+	IsReadOnlySet bool
 	// StatsLoadStatus records StatsLoadedStatus for the index/column which is used in query
 	StatsLoadStatus map[model.TableItemID]string
 	// IsSyncStatsFailed indicates whether any failure happened during sync stats
