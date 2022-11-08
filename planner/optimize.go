@@ -59,20 +59,19 @@ func IsReadOnly(node ast.Node, vars *variable.SessionVars) bool {
 			return prepareStmt.PreparedAst.IsReadOnlyStmt&0x01 != 0
 		}
 
-		if ast.IsReadOnly(node) {
+		if ast.IsReadOnly(prepareStmt.PreparedAst.Stmt) {
 			prepareStmt.PreparedAst.IsReadOnlyStmt = 0x11
 			return true
 		}
 		prepareStmt.PreparedAst.IsReadOnlyStmt = 0x10
 		return false
 	}
-
-	if vars.StmtCtx.IsReadOnlySet {
+	return ast.IsReadOnly(node)
+	/*
+		vars.StmtCtx.IsReadOnly = ast.IsReadOnly(node)
+		vars.StmtCtx.IsReadOnlySet = true
 		return vars.StmtCtx.IsReadOnly
-	}
-	vars.StmtCtx.IsReadOnly = ast.IsReadOnly(node)
-	vars.StmtCtx.IsReadOnlySet = true
-	return vars.StmtCtx.IsReadOnly
+	*/
 }
 
 func matchSQLBinding(sctx sessionctx.Context, stmtNode ast.StmtNode) (bindRecord *bindinfo.BindRecord, scope string, matched bool) {
