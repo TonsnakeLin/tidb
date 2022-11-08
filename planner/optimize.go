@@ -49,18 +49,25 @@ import (
 
 // IsReadOnly check whether the ast.Node is a read only statement.
 func IsReadOnly(node ast.Node, vars *variable.SessionVars) bool {
-	if vars.StmtCtx.IsReadOnlySet {
-		return vars.StmtCtx.IsReadOnly
-	}
-
 	if execStmt, isExecStmt := node.(*ast.ExecuteStmt); isExecStmt {
 		prepareStmt, err := core.GetPreparedStmt(execStmt, vars)
 		if err != nil {
 			logutil.BgLogger().Warn("GetPreparedStmt failed", zap.Error(err))
 			return false
 		}
-		vars.StmtCtx.IsReadOnly = prepareStmt.PreparedAst.IsReadOnlyStmt
-		vars.StmtCtx.IsReadOnlySet = true
+		if prepareStmt.PreparedAst.IsReadOnlyStmt&0x10 != 0 {
+			return prepareStmt.PreparedAst.IsReadOnlyStmt&0x01 != 0
+		}
+
+		if ast.IsReadOnly(node) {
+			prepareStmt.PreparedAst.IsReadOnlyStmt = 0x11
+			return true
+		}
+		prepareStmt.PreparedAst.IsReadOnlyStmt = 0x10
+		return false
+	}
+
+	if vars.StmtCtx.IsReadOnlySet {
 		return vars.StmtCtx.IsReadOnly
 	}
 	vars.StmtCtx.IsReadOnly = ast.IsReadOnly(node)

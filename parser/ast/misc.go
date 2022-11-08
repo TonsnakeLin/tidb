@@ -509,7 +509,7 @@ type Prepared struct {
 	UseCache       bool
 	CachedPlan     interface{}
 	CachedNames    interface{}
-	IsReadOnlyStmt bool
+	IsReadOnlyStmt byte
 }
 
 // ExecuteStmt is a statement to execute PreparedStmt.
