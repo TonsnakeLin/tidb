@@ -512,6 +512,10 @@ type Prepared struct {
 	IsReadOnlyStmt byte
 }
 
+func (p *Prepared) IsReadOnly() bool {
+	return p.IsReadOnlyStmt&0x01 != 0
+}
+
 // ExecuteStmt is a statement to execute PreparedStmt.
 // See https://dev.mysql.com/doc/refman/5.7/en/execute.html
 type ExecuteStmt struct {
