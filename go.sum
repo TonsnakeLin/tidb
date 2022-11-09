@@ -96,8 +96,12 @@ github.com/Shopify/sarama v1.29.0/go.mod h1:2QpgD79wpdAESqNQMxNc0KYMkycd4slxGdV3
 github.com/Shopify/toxiproxy v2.1.4+incompatible h1:TKdv8HiTLgE5wdJuEML90aBgNWsokNbMijUGhmcoBJc=
 github.com/Shopify/toxiproxy v2.1.4+incompatible/go.mod h1:OXgGpZ6Cli1/URJOF1DMxUHB2q5Ap20/P/eIdh4G0pI=
 github.com/StackExchange/wmi v0.0.0-20180725035823-b12b22c5341f/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
+github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221105070924-a68841940b4e h1:7vNI/ROVKGtYZlvadqAYW9my3ebXHWnixero3h4eEYs=
+github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221105070924-a68841940b4e/go.mod h1:wQ19lXgtiFecpgNJyVGOkDzffkewkZL8udVISzB26hQ=
 github.com/TonsnakeLin/kvproto v0.0.0-20221109010657-caf761597352 h1:V+0qygATL7LCMhSepaaM+UAjSpOWvJVNwcmV5KePjjU=
 github.com/TonsnakeLin/kvproto v0.0.0-20221109010657-caf761597352/go.mod h1:OYtxs0786qojVTmkVeufx93xe+jUgm56GUYRIKnmaGI=
+github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f h1:PI13M5HoBUWS1mmC5xEwOIhdgo7N7PoJJqkBxPq7Gsc=
+github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f/go.mod h1:A7mrd7WHBl1o63LE2bIBGEJMTNWXqhgmYiOvMLxozfs=
 github.com/VividCortex/ewma v1.1.1/go.mod h1:2Tkkvm3sRDVXaiyucHiACn4cqf7DpdyLvmxzcbUokwA=
 github.com/VividCortex/ewma v1.2.0 h1:f58SaIzcDXrSy3kWaHNvuJgJ3Nmz59Zji6XoJR/q1ow=
 github.com/VividCortex/ewma v1.2.0/go.mod h1:nz4BbCtbLyFDeC9SUHbtcT5644juEuWfUAUnGx7j5l4=
