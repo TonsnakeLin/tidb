@@ -255,7 +255,7 @@ replace (
 	go.opencensus.io => go.opencensus.io v0.23.1-0.20220331163232-052120675fac
 )
 
-replace github.com/tikv/client-go/v2 => github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221109012518-d295a68380df 
+replace github.com/tikv/client-go/v2 => github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221109014051-54a5bf71c96c 
 
 replace github.com/pingcap/tipb => github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f
 
