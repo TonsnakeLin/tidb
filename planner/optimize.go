@@ -55,7 +55,16 @@ func IsReadOnly(node ast.Node, vars *variable.SessionVars) bool {
 			logutil.BgLogger().Warn("GetPreparedStmt failed", zap.Error(err))
 			return false
 		}
-		return ast.IsReadOnly(prepareStmt.PreparedAst.Stmt)
+		if prepareStmt.PreparedAst.IsReadOnlyStmt&0x10 != 0 {
+			return prepareStmt.PreparedAst.IsReadOnlyStmt&0x01 != 0
+		}
+
+		if ast.IsReadOnly(prepareStmt.PreparedAst.Stmt) {
+			prepareStmt.PreparedAst.IsReadOnlyStmt = 0x11
+			return true
+		}
+		prepareStmt.PreparedAst.IsReadOnlyStmt = 0x10
+		return false
 	}
 	return ast.IsReadOnly(node)
 }
