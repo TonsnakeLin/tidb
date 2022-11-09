@@ -106,6 +106,8 @@ github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221109023827-0b5162b61805 h1:u3qg
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221109023827-0b5162b61805/go.mod h1:GdFWAsEq56moBjkE15jbVMOovPIlQHmghZ1UmhcnBeY=
 github.com/TonsnakeLin/kvproto v0.0.0-20221109010657-caf761597352 h1:V+0qygATL7LCMhSepaaM+UAjSpOWvJVNwcmV5KePjjU=
 github.com/TonsnakeLin/kvproto v0.0.0-20221109010657-caf761597352/go.mod h1:OYtxs0786qojVTmkVeufx93xe+jUgm56GUYRIKnmaGI=
+github.com/TonsnakeLin/kvproto v0.0.0-20221109023054-4798cac35740 h1:8HhgZgKZ9fCxvheRYmtSboQQdpX/oXtb3cmuXDzllWM=
+github.com/TonsnakeLin/kvproto v0.0.0-20221109023054-4798cac35740/go.mod h1:OYtxs0786qojVTmkVeufx93xe+jUgm56GUYRIKnmaGI=
 github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f h1:PI13M5HoBUWS1mmC5xEwOIhdgo7N7PoJJqkBxPq7Gsc=
 github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f/go.mod h1:A7mrd7WHBl1o63LE2bIBGEJMTNWXqhgmYiOvMLxozfs=
 github.com/VividCortex/ewma v1.1.1/go.mod h1:2Tkkvm3sRDVXaiyucHiACn4cqf7DpdyLvmxzcbUokwA=

@@ -259,4 +259,4 @@ replace github.com/tikv/client-go/v2 => github.com/TonsnakeLin/client-go/v2 v2.0
 
 replace github.com/pingcap/tipb => github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f
 
-replace github.com/pingcap/kvproto => github.com/TonsnakeLin/kvproto v0.0.0-20221109010657-caf761597352
+replace github.com/pingcap/kvproto => github.com/TonsnakeLin/kvproto v0.0.0-20221109023054-4798cac35740
