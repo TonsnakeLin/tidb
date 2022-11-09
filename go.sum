@@ -98,6 +98,8 @@ github.com/Shopify/toxiproxy v2.1.4+incompatible/go.mod h1:OXgGpZ6Cli1/URJOF1DMx
 github.com/StackExchange/wmi v0.0.0-20180725035823-b12b22c5341f/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221105070924-a68841940b4e h1:7vNI/ROVKGtYZlvadqAYW9my3ebXHWnixero3h4eEYs=
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221105070924-a68841940b4e/go.mod h1:wQ19lXgtiFecpgNJyVGOkDzffkewkZL8udVISzB26hQ=
+github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221109012518-d295a68380df h1:ZyDxh6noumR709KbzehCr7OOk9K0T1s6q2eIcLCWwZs=
+github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20221109012518-d295a68380df/go.mod h1:gob1fWRFSCkzWVyTPtCI9DvmqL65zeiFEcIyEOkynn8=
 github.com/TonsnakeLin/kvproto v0.0.0-20221109010657-caf761597352 h1:V+0qygATL7LCMhSepaaM+UAjSpOWvJVNwcmV5KePjjU=
 github.com/TonsnakeLin/kvproto v0.0.0-20221109010657-caf761597352/go.mod h1:OYtxs0786qojVTmkVeufx93xe+jUgm56GUYRIKnmaGI=
 github.com/TonsnakeLin/tipb v0.0.0-20221026024349-b27985010e0f h1:PI13M5HoBUWS1mmC5xEwOIhdgo7N7PoJJqkBxPq7Gsc=
