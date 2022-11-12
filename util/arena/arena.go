@@ -14,6 +14,16 @@
 
 package arena
 
+import (
+	"reflect"
+	"unsafe"
+
+	"github.com/pingcap/tidb/parser/ast"
+	"github.com/pingcap/tidb/parser/model"
+	"github.com/pingcap/tidb/sessionctx/stmtctx"
+	"github.com/pingcap/tidb/types"
+)
+
 // Allocator pre-allocates memory to reduce memory allocation cost.
 // It is not thread-safe.
 type Allocator interface {
@@ -77,4 +87,110 @@ func (s *SimpleAllocator) AllocWithLen(length int, capacity int) []byte {
 // Reset implements Allocator.Reset interface.
 func (s *SimpleAllocator) Reset() {
 	s.off = 0
+}
+
+// MixedMemPool is used allocate different type objects and slices by allocated memory.
+type MixedMemPool struct {
+	objAllocator ObjectorAllocator
+}
+
+// ObjectorAllocator is a .
+type ObjectorAllocator struct {
+	arena    []byte
+	offset   int
+	capacity int
+}
+
+func (objAlloc *ObjectorAllocator) Init() {
+	objAlloc.arena = make([]byte, 262144, 262144)
+	objAlloc.offset = 262144
+	objAlloc.capacity = 262144
+}
+
+func (objAlloc *ObjectorAllocator) Reset() {
+	objAlloc.offset = 0
+}
+
+func (objAlloc *ObjectorAllocator) GetExecuteStmt() *ast.ExecuteStmt {
+	curArena := objAlloc.arena[objAlloc.offset:]
+	arenaPtr := unsafe.Pointer(&curArena)
+	objPtr := (*ast.ExecuteStmt)(unsafe.Pointer((*reflect.SliceHeader)(arenaPtr).Data))
+	typesize := int(unsafe.Sizeof(*objPtr))
+	if objAlloc.offset+typesize > objAlloc.capacity {
+		return &ast.ExecuteStmt{}
+	}
+	objAlloc.offset += typesize
+	return objPtr
+}
+
+func (objAlloc *ObjectorAllocator) GetStatementContext() *stmtctx.StatementContext {
+	curArena := objAlloc.arena[objAlloc.offset:]
+	arenaPtr := unsafe.Pointer(&curArena)
+	objPtr := (*stmtctx.StatementContext)(unsafe.Pointer((*reflect.SliceHeader)(arenaPtr).Data))
+	typesize := int(unsafe.Sizeof(*objPtr))
+	if objAlloc.offset+typesize > objAlloc.capacity {
+		return &stmtctx.StatementContext{}
+	}
+	objAlloc.offset += typesize
+	return objPtr
+}
+
+func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
+	curArena := objAlloc.arena[objAlloc.offset:]
+	arenaPtr := unsafe.Pointer(&curArena)
+	objPtr := unsafe.Pointer((*reflect.SliceHeader)(arenaPtr).Data)
+
+	if objAlloc.offset+len > objAlloc.capacity {
+		return nil
+	}
+	objAlloc.offset += len
+	return objPtr
+}
+
+type SliceAlloctor struct {
+	ExprSlice  any
+	DatumSlice *types.DatumSliceAllocator
+}
+
+type MapAllocator struct {
+	// StmtCtxsmall maps
+	StatsLoadStatus   map[model.TableItemID]string
+	LockTableIDs      map[int64]struct{}
+	TblInfo2UnionScan map[*model.TableInfo]bool
+	TableStats        map[int64]interface{}
+}
+
+func (ma *MapAllocator) InitMapAllocator() {
+	ma.StatsLoadStatus = make(map[model.TableItemID]string, 2)
+	ma.LockTableIDs = make(map[int64]struct{})
+	ma.TblInfo2UnionScan = make(map[*model.TableInfo]bool, 2)
+	ma.TableStats = make(map[int64]interface{})
+}
+
+func (ma *MapAllocator) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
+	for k := range ma.TblInfo2UnionScan {
+		delete(ma.TblInfo2UnionScan, k)
+	}
+	return ma.TblInfo2UnionScan
+}
+
+func (ma *MapAllocator) GetStatsLoadStatusMap() map[model.TableItemID]string {
+	for k := range ma.StatsLoadStatus {
+		delete(ma.StatsLoadStatus, k)
+	}
+	return ma.StatsLoadStatus
+}
+
+func (ma *MapAllocator) GetLockTableIDs() map[int64]struct{} {
+	for k := range ma.LockTableIDs {
+		delete(ma.LockTableIDs, k)
+	}
+	return ma.LockTableIDs
+}
+
+func (ma *MapAllocator) GetTableStatsMap() map[int64]interface{} {
+	for k := range ma.TableStats {
+		delete(ma.TableStats, k)
+	}
+	return ma.TableStats
 }

@@ -130,7 +130,7 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (_ *ExecS
 		lowerPriority = needLowerPriority(finalPlan)
 	}
 	stmtCtx.SetPlan(finalPlan)
-	stmt := &ExecStmt{
+	stmt := ExecStmt{
 		GoCtx:         ctx,
 		InfoSchema:    is,
 		Plan:          finalPlan,
@@ -140,6 +140,12 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (_ *ExecS
 		Ctx:           c.Ctx,
 		OutputNames:   names,
 		Ti:            &TelemetryInfo{},
+	}
+	ptrStmt := &stmt
+	ptr := sessVars.GetObjectPointer(sizeOfExecStmt)
+	if ptr != nil {
+		ptrStmt = (*ExecStmt)(ptr)
+		*ptrStmt = stmt
 	}
 	if pointPlanShortPathOK {
 		if ep, ok := stmt.Plan.(*plannercore.Execute); ok {
@@ -154,7 +160,7 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (_ *ExecS
 			}
 		}
 	}
-	return stmt, nil
+	return ptrStmt, nil
 }
 
 // needLowerPriority checks whether it's needed to lower the execution priority

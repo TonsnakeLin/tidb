@@ -61,6 +61,7 @@ import (
 	"github.com/pingcap/tidb/domain/infosync"
 	"github.com/pingcap/tidb/errno"
 	"github.com/pingcap/tidb/executor"
+	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/extension"
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/kv"
@@ -1065,6 +1066,12 @@ func (cc *clientConn) Run(ctx context.Context) {
 			metrics.PanicCounter.WithLabelValues(metrics.LabelSession).Inc()
 		}
 	}()
+	sessVars := cc.ctx.GetSessionVars()
+	if sessVars.MemPoolSet.SliceAllocator.ExprSlice == nil {
+		es := &expression.ExpressionSlice{}
+		es.InitExprSlice()
+		sessVars.MemPoolSet.SliceAllocator.ExprSlice = es
+	}
 
 	// Usually, client connection status changes between [dispatching] <=> [reading].
 	// When some event happens, server may notify this client connection by setting

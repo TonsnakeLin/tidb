@@ -47,12 +47,11 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/charset"
 	"github.com/pingcap/tidb/parser/mysql"
 	"github.com/pingcap/tidb/parser/terror"
 	plannercore "github.com/pingcap/tidb/planner/core"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
+	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/sessiontxn"
 	storeerr "github.com/pingcap/tidb/store/driver/error"
 	"github.com/pingcap/tidb/types"
@@ -170,9 +169,11 @@ func (cc *clientConn) handleStmtExecute(ctx context.Context, data []byte) (err e
 		paramTypes  []byte
 		paramValues []byte
 	)
+	sessVars := cc.ctx.GetSessionVars()
 	cc.initInputEncoder(ctx)
 	numParams := stmt.NumParams()
-	args := make([]expression.Expression, numParams)
+	// args := make([]expression.Expression, numParams)
+	args := sessVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(numParams)
 	if numParams > 0 {
 		nullBitmapLen := (numParams + 7) >> 3
 		if len(data) < (pos + nullBitmapLen + 1) {
@@ -198,14 +199,13 @@ func (cc *clientConn) handleStmtExecute(ctx context.Context, data []byte) (err e
 			paramValues = data[pos+1:]
 		}
 
-		err = parseExecArgs(cc.ctx.GetSessionVars().StmtCtx, args, stmt.BoundParams(), nullBitmaps, stmt.GetParamsType(), paramValues, cc.inputDecoder)
+		err = parseExecArgs(cc.ctx.GetSessionVars(), args, stmt.BoundParams(), nullBitmaps, stmt.GetParamsType(), paramValues, cc.inputDecoder)
 		stmt.Reset()
 		if err != nil {
 			return errors.Annotate(err, cc.preparedStmt2String(stmtID))
 		}
 	}
 
-	sessVars := cc.ctx.GetSessionVars()
 	// expiredTaskID is the task ID of the previous statement. When executing a stmt,
 	// the StmtCtx will be reinit and the TaskID will change. We can compare the StmtCtx.TaskID
 	// with the previous one to determine whether StmtCtx has been inited for the current stmt.
@@ -255,10 +255,15 @@ func (cc *clientConn) executePreparedStmtAndWriteResult(ctx context.Context, stm
 	if err != nil {
 		return true, errors.Annotate(err, cc.preparedStmt2String(uint32(stmt.ID())))
 	}
-	execStmt := &ast.ExecuteStmt{
-		BinaryArgs: args,
-		PrepStmt:   prepStmt,
-	}
+	/*
+		execStmt := &ast.ExecuteStmt{
+			BinaryArgs: args,
+			PrepStmt:   prepStmt,
+		}
+	*/
+	execStmt := (&cc.ctx).GetSessionVars().GetExecuteStmt()
+	execStmt.BinaryArgs = args
+	execStmt.PrepStmt = prepStmt
 	rs, err := (&cc.ctx).ExecuteStmt(ctx, execStmt)
 	if err != nil {
 		return true, errors.Annotate(err, cc.preparedStmt2String(uint32(stmt.ID())))
@@ -356,8 +361,9 @@ func parseStmtFetchCmd(data []byte) (stmtID uint32, fetchSize uint32, err error)
 	return
 }
 
-func parseExecArgs(sc *stmtctx.StatementContext, params []expression.Expression, boundParams [][]byte,
+func parseExecArgs(vars *variable.SessionVars, params []expression.Expression, boundParams [][]byte,
 	nullBitmap, paramTypes, paramValues []byte, enc *inputDecoder) (err error) {
+	sc := vars.StmtCtx
 	pos := 0
 	var (
 		tmp    interface{}
@@ -369,7 +375,8 @@ func parseExecArgs(sc *stmtctx.StatementContext, params []expression.Expression,
 		enc = newInputDecoder(charset.CharsetUTF8)
 	}
 
-	args := make([]types.Datum, len(params))
+	// args := make([]types.Datum, len(params))
+	args := vars.GetDatumSliceByLen(len(params))
 	for i := 0; i < len(args); i++ {
 		// if params had received via ComStmtSendLongData, use them directly.
 		// ref https://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html

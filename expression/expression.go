@@ -45,11 +45,72 @@ import (
 
 // These are byte flags used for `HashCode()`.
 const (
-	constantFlag       byte = 0
-	columnFlag         byte = 1
-	scalarFunctionFlag byte = 3
-	parameterFlag      byte = 4
+	constantFlag       byte   = 0
+	columnFlag         byte   = 1
+	scalarFunctionFlag byte   = 3
+	parameterFlag      byte   = 4
+	sliceNum           uint64 = 64
+	exprNumPerSlice    int    = 4096
 )
+
+// var GlobalExprSlicePool ExpressionSlicePool
+/*
+type ExpressionSlicePool struct {
+	mutex sync.Mutex
+	exprs [sliceNum]*ExpressionSlice
+}
+*/
+
+/*
+func init() {
+	var i uint64
+	for i = 0; i < sliceNum; i++ {
+		es := &ExpressionSlice{}
+		es.InitExprSlice()
+		GlobalExprSlicePool.exprs[i] = es
+	}
+}
+
+func GetExprSliceByCap(slot uint64, cap int) []Expression {
+	es := GlobalExprSlicePool.exprs[slot%sliceNum]
+	return es.GetExprSliceByCap(cap)
+}
+
+func GetExprSliceByLen(slot uint64, len int) []Expression {
+	es := GlobalExprSlicePool.exprs[slot%sliceNum]
+	return es.GetExprSliceByLen(len)
+}
+*/
+
+type ExpressionSlice struct {
+	exprs         []Expression
+	exprsOffset   int
+	exprsCapacity int
+}
+
+func (es *ExpressionSlice) InitExprSlice() {
+	es.exprs = make([]Expression, 0, 4096)
+	es.exprsOffset = 0
+	es.exprsCapacity = 4096
+}
+
+func (es *ExpressionSlice) GetExprSliceByCap(cap int) []Expression {
+	origOffset := es.exprsOffset
+	if origOffset+cap > es.exprsCapacity {
+		return make([]Expression, 0, cap)
+	}
+	es.exprsOffset += cap
+	return es.exprs[origOffset : origOffset : origOffset+cap]
+}
+
+func (es *ExpressionSlice) GetExprSliceByLen(len int) []Expression {
+	origOffset := es.exprsOffset
+	if origOffset+len > es.exprsCapacity {
+		return make([]Expression, len, len)
+	}
+	es.exprsOffset += len
+	return es.exprs[origOffset : origOffset+len : origOffset+len]
+}
 
 // EvalAstExpr evaluates ast expression directly.
 // Note: initialized in planner/core

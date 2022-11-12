@@ -28,6 +28,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/config"
@@ -45,6 +46,7 @@ import (
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	pumpcli "github.com/pingcap/tidb/tidb-binlog/pump_client"
 	"github.com/pingcap/tidb/types"
+	"github.com/pingcap/tidb/util/arena"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/disk"
 	"github.com/pingcap/tidb/util/execdetails"
@@ -1305,6 +1307,69 @@ type SessionVars struct {
 	// preuseChunkAlloc indicates whether pre statement use chunk alloc
 	// like select @@last_sql_use_alloc
 	preUseChunkAlloc bool
+
+	MemPoolSet struct {
+		mutex          sync.Mutex
+		ObjAllocator   *arena.ObjectorAllocator
+		SliceAllocator *arena.SliceAlloctor
+		MapAlloctor    *arena.MapAllocator
+	}
+}
+
+func (s *SessionVars) InitMemPoolSet() {
+	objAllocator := &arena.ObjectorAllocator{}
+	objAllocator.Init()
+
+	sliceAllocator := &arena.SliceAlloctor{}
+	sliceAllocator.DatumSlice = &types.DatumSliceAllocator{}
+	sliceAllocator.DatumSlice.InitDatumSlice()
+
+	mapAllocator := &arena.MapAllocator{}
+	mapAllocator.InitMapAllocator()
+
+	s.MemPoolSet.ObjAllocator = objAllocator
+	s.MemPoolSet.SliceAllocator = sliceAllocator
+	s.MemPoolSet.MapAlloctor = mapAllocator
+}
+
+func (s *SessionVars) GetTableStatsMap() map[int64]interface{} {
+	return s.MemPoolSet.MapAlloctor.GetTableStatsMap()
+}
+
+func (s *SessionVars) GetLockTableIDs() map[int64]struct{} {
+	return s.MemPoolSet.MapAlloctor.GetLockTableIDs()
+}
+
+func (s *SessionVars) GetStatsLoadStatusMap() map[model.TableItemID]string {
+	return s.MemPoolSet.MapAlloctor.GetStatsLoadStatusMap()
+}
+
+func (s *SessionVars) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
+	return s.MemPoolSet.MapAlloctor.GetTblInfo2UnionScanMap()
+}
+
+func (s *SessionVars) GetCachedStatementContext() *stmtctx.StatementContext {
+	return s.MemPoolSet.ObjAllocator.GetStatementContext()
+}
+
+func (s *SessionVars) GetObjectPointer(len int) unsafe.Pointer {
+	return s.MemPoolSet.ObjAllocator.GetObjectPointer(len)
+}
+
+func (s *SessionVars) GetExecuteStmt() *ast.ExecuteStmt {
+	return s.MemPoolSet.ObjAllocator.GetExecuteStmt()
+}
+
+func (s *SessionVars) GetExprSlice() any {
+	return s.MemPoolSet.SliceAllocator.ExprSlice
+}
+
+func (s *SessionVars) GetDatumSliceByCap(cap int) []types.Datum {
+	return s.MemPoolSet.SliceAllocator.DatumSlice.GetDatumSliceByCap(cap)
+}
+
+func (s *SessionVars) GetDatumSliceByLen(len int) []types.Datum {
+	return s.MemPoolSet.SliceAllocator.DatumSlice.GetDatumSliceByLen(len)
 }
 
 // GetNewChunkWithCapacity Attempt to request memory from the chunk pool
@@ -1707,6 +1772,7 @@ func NewSessionVars(hctx HookContext) *SessionVars {
 		vars.TxnScope = kv.NewGlobalTxnScopeVar()
 	}
 	vars.systems[CharacterSetConnection], vars.systems[CollationConnection] = charset.GetDefaultCharsetAndCollate()
+	vars.InitMemPoolSet()
 	return vars
 }
 

@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
@@ -69,6 +70,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+const sizeOfExecStmt = int(unsafe.Sizeof(ExecStmt{}))
 
 // metrics option
 var (

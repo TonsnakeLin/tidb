@@ -20,7 +20,7 @@ import (
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/parser/mysql"
 	"github.com/pingcap/tidb/parser/terror"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
+	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/types"
 	"github.com/stretchr/testify/require"
 )
@@ -198,7 +198,7 @@ func TestParseExecArgs(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		err := parseExecArgs(&stmtctx.StatementContext{}, tt.args.args, tt.args.boundParams, tt.args.nullBitmap, tt.args.paramTypes, tt.args.paramValues, nil)
+		err := parseExecArgs(&variable.SessionVars{}, tt.args.args, tt.args.boundParams, tt.args.nullBitmap, tt.args.paramTypes, tt.args.paramValues, nil)
 		require.Truef(t, terror.ErrorEqual(err, tt.err), "err %v", err)
 		if err == nil {
 			require.Equal(t, tt.expect, tt.args.args[0].(*expression.Constant).Value.GetValue())
@@ -208,7 +208,7 @@ func TestParseExecArgs(t *testing.T) {
 
 func TestParseExecArgsAndEncode(t *testing.T) {
 	dt := expression.Args2Expressions4Test(1)
-	err := parseExecArgs(&stmtctx.StatementContext{},
+	err := parseExecArgs(&variable.SessionVars{},
 		dt,
 		[][]byte{nil},
 		[]byte{0x0},
@@ -218,7 +218,7 @@ func TestParseExecArgsAndEncode(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "测试", dt[0].(*expression.Constant).Value.GetValue())
 
-	err = parseExecArgs(&stmtctx.StatementContext{},
+	err = parseExecArgs(&variable.SessionVars{},
 		dt,
 		[][]byte{{178, 226, 202, 212}},
 		[]byte{0x0},

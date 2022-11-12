@@ -60,6 +60,36 @@ const (
 	KindMysqlJSON     byte = 18
 )
 
+type DatumSliceAllocator struct {
+	datums         []Datum
+	datumsOffset   int
+	datumsCapacity int
+}
+
+func (ds *DatumSliceAllocator) InitDatumSlice() {
+	ds.datums = make([]Datum, 0, 4096)
+	ds.datumsOffset = 0
+	ds.datumsCapacity = 4096
+}
+
+func (ds *DatumSliceAllocator) GetDatumSliceByCap(cap int) []Datum {
+	origOffset := ds.datumsOffset
+	if origOffset+cap > ds.datumsCapacity {
+		return make([]Datum, 0, cap)
+	}
+	ds.datumsOffset += cap
+	return ds.datums[origOffset : origOffset : origOffset+cap]
+}
+
+func (ds *DatumSliceAllocator) GetDatumSliceByLen(len int) []Datum {
+	origOffset := ds.datumsOffset
+	if origOffset+len > ds.datumsCapacity {
+		return make([]Datum, len, len)
+	}
+	ds.datumsOffset += len
+	return ds.datums[origOffset : origOffset+len : origOffset+len]
+}
+
 // Datum is a data box holds different kind of data.
 // It has better performance and is easier to use than `interface{}`.
 type Datum struct {

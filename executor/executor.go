@@ -1923,22 +1923,28 @@ func (e *UnionExec) Close() error {
 func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 	vars := ctx.GetSessionVars()
 	var sc *stmtctx.StatementContext
-	if vars.TxnCtx.CouldRetry {
-		// Must construct new statement context object, the retry history need context for every statement.
-		// TODO: Maybe one day we can get rid of transaction retry, then this logic can be deleted.
-		sc = &stmtctx.StatementContext{}
-	} else {
-		sc = vars.InitStatementContext()
-	}
+	/*
+		if vars.TxnCtx.CouldRetry {
+			// Must construct new statement context object, the retry history need context for every statement.
+			// TODO: Maybe one day we can get rid of transaction retry, then this logic can be deleted.
+			sc = &stmtctx.StatementContext{}
+		} else {
+			sc = vars.InitStatementContext()
+		}
+	*/
+	sc = vars.GetCachedStatementContext()
+	*sc = stmtctx.StatementContext{}
 	sc.TimeZone = vars.Location()
 	sc.TaskID = stmtctx.AllocateTaskID()
 	sc.CTEStorageMap = map[int]*CTEStorages{}
 	sc.IsStaleness = false
-	sc.LockTableIDs = make(map[int64]struct{})
+	// sc.LockTableIDs = make(map[int64]struct{})
+	sc.LockTableIDs = vars.GetLockTableIDs()
 	sc.EnableOptimizeTrace = false
 	sc.OptimizeTracer = nil
 	sc.OptimizerCETrace = nil
-	sc.StatsLoadStatus = make(map[model.TableItemID]string)
+	// sc.StatsLoadStatus = make(map[model.TableItemID]string)
+	sc.StatsLoadStatus = vars.GetStatsLoadStatusMap()
 	sc.IsSyncStatsFailed = false
 	sc.IsExplainAnalyzeDML = false
 	// Firstly we assume that UseDynamicPruneMode can be enabled according session variable, then we will check other conditions
@@ -1956,7 +1962,8 @@ func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 	vars.MemTracker.ResetMaxConsumed()
 	vars.DiskTracker.ResetMaxConsumed()
 	vars.MemTracker.SessionID = vars.ConnectionID
-	vars.StmtCtx.TableStats = make(map[int64]interface{})
+	// vars.StmtCtx.TableStats = make(map[int64]interface{})
+	vars.StmtCtx.TableStats = vars.GetTableStatsMap()
 
 	if _, ok := s.(*ast.AnalyzeTableStmt); ok {
 		sc.InitMemTracker(memory.LabelForAnalyzeMemory, -1)
@@ -2141,7 +2148,8 @@ func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 		sc.RuntimeStatsColl = execdetails.NewRuntimeStatsColl(reuseObj)
 	}
 
-	sc.TblInfo2UnionScan = make(map[*model.TableInfo]bool)
+	// sc.TblInfo2UnionScan = make(map[*model.TableInfo]bool)
+	sc.TblInfo2UnionScan = vars.GetTblInfo2UnionScanMap()
 	errCount, warnCount := vars.StmtCtx.NumErrorWarnings()
 	vars.SysErrorCount = errCount
 	vars.SysWarningCount = warnCount
