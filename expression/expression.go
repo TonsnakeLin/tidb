@@ -94,6 +94,10 @@ func (es *ExpressionSlice) InitExprSlice() {
 	es.exprsCapacity = 4096
 }
 
+func (es *ExpressionSlice) Reset() {
+	es.exprsOffset = 0
+}
+
 func (es *ExpressionSlice) GetExprSliceByCap(cap int) []Expression {
 	origOffset := es.exprsOffset
 	if origOffset+cap > es.exprsCapacity {

@@ -90,6 +90,10 @@ func (ds *DatumSliceAllocator) GetDatumSliceByLen(len int) []Datum {
 	return ds.datums[origOffset : origOffset+len : origOffset+len]
 }
 
+func (ds *DatumSliceAllocator) Reset() {
+	ds.datumsOffset = 0
+}
+
 // Datum is a data box holds different kind of data.
 // It has better performance and is easier to use than `interface{}`.
 type Datum struct {

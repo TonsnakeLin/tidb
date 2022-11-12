@@ -1316,6 +1316,12 @@ type SessionVars struct {
 	}
 }
 
+func (s *SessionVars) ResetMemPoolSet() {
+	s.MemPoolSet.ObjAllocator.Reset()
+	s.MemPoolSet.SliceAllocator.Reset()
+	s.MemPoolSet.MapAlloctor.Reset()
+}
+
 func (s *SessionVars) InitMemPoolSet() {
 	objAllocator := &arena.ObjectorAllocator{}
 	objAllocator.Init()

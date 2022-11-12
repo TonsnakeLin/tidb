@@ -1087,6 +1087,8 @@ func (cc *clientConn) Run(ctx context.Context) {
 		}
 
 		cc.alloc.Reset()
+		sessVars.ResetMemPoolSet()
+		sessVars.MemPoolSet.SliceAllocator.ExprSlice.(*expression.ExpressionSlice).Reset()
 		// close connection when idle time is more than wait_timeout
 		waitTimeout := cc.getSessionVarsWaitTimeout(ctx)
 		cc.pkt.setReadTimeout(time.Duration(waitTimeout) * time.Second)

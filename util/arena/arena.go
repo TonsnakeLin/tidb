@@ -152,6 +152,10 @@ type SliceAlloctor struct {
 	DatumSlice *types.DatumSliceAllocator
 }
 
+func (sa *SliceAlloctor) Reset() {
+	sa.DatumSlice.Reset()
+}
+
 type MapAllocator struct {
 	// StmtCtxsmall maps
 	StatsLoadStatus   map[model.TableItemID]string
@@ -193,4 +197,8 @@ func (ma *MapAllocator) GetTableStatsMap() map[int64]interface{} {
 		delete(ma.TableStats, k)
 	}
 	return ma.TableStats
+}
+
+func (ma *MapAllocator) Reset() {
+	// do nothing, when getting map, it will reset the map
 }
