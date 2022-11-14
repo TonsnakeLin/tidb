@@ -1354,16 +1354,8 @@ func (s *SessionVars) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
 	return s.MemPoolSet.MapAlloctor.GetTblInfo2UnionScanMap()
 }
 
-func (s *SessionVars) GetCachedStatementContext() *stmtctx.StatementContext {
-	return s.MemPoolSet.ObjAllocator.GetStatementContext()
-}
-
 func (s *SessionVars) GetObjectPointer(len int) unsafe.Pointer {
 	return s.MemPoolSet.ObjAllocator.GetObjectPointer(len)
-}
-
-func (s *SessionVars) GetExecuteStmt() *ast.ExecuteStmt {
-	return s.MemPoolSet.ObjAllocator.GetExecuteStmt()
 }
 
 func (s *SessionVars) GetExprSlice() any {

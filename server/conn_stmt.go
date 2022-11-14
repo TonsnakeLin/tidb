@@ -43,10 +43,12 @@ import (
 	"runtime/trace"
 	"strconv"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/kv"
+	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/charset"
 	"github.com/pingcap/tidb/parser/mysql"
 	"github.com/pingcap/tidb/parser/terror"
@@ -61,6 +63,8 @@ import (
 	topsqlstate "github.com/pingcap/tidb/util/topsql/state"
 	"github.com/tikv/client-go/v2/util"
 )
+
+const sizeOfExecuteStmt = int(unsafe.Sizeof(ast.ExecuteStmt{}))
 
 func (cc *clientConn) handleStmtPrepare(ctx context.Context, sql string) error {
 	stmt, columns, params, err := cc.ctx.Prepare(sql)
@@ -261,7 +265,20 @@ func (cc *clientConn) executePreparedStmtAndWriteResult(ctx context.Context, stm
 			PrepStmt:   prepStmt,
 		}
 	*/
-	execStmt := (&cc.ctx).GetSessionVars().GetExecuteStmt()
+	var execStmt *ast.ExecuteStmt
+	ptr := (&cc.ctx).GetSessionVars().GetObjectPointer(sizeOfExecuteStmt)
+	if ptr != nil {
+		execStmt = (*ast.ExecuteStmt)(ptr)
+		*execStmt = ast.ExecuteStmt{
+			BinaryArgs: args,
+			PrepStmt:   prepStmt,
+		}
+	} else {
+		execStmt = &ast.ExecuteStmt{
+			BinaryArgs: args,
+			PrepStmt:   prepStmt,
+		}
+	}
 	execStmt.BinaryArgs = args
 	execStmt.PrepStmt = prepStmt
 	rs, err := (&cc.ctx).ExecuteStmt(ctx, execStmt)

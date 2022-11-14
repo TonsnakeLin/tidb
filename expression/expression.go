@@ -89,7 +89,7 @@ type ExpressionSlice struct {
 }
 
 func (es *ExpressionSlice) InitExprSlice() {
-	es.exprs = make([]Expression, 0, 4096)
+	es.exprs = make([]Expression, 4096, 4096)
 	es.exprsOffset = 0
 	es.exprsCapacity = 4096
 }
@@ -110,7 +110,7 @@ func (es *ExpressionSlice) GetExprSliceByCap(cap int) []Expression {
 func (es *ExpressionSlice) GetExprSliceByLen(len int) []Expression {
 	origOffset := es.exprsOffset
 	if origOffset+len > es.exprsCapacity {
-		return make([]Expression, len, len)
+		return make([]Expression, len)
 	}
 	es.exprsOffset += len
 	return es.exprs[origOffset : origOffset+len : origOffset+len]

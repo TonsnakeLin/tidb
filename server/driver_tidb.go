@@ -35,14 +35,13 @@ import (
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/sessionctx/sessionstates"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
-	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/sqlexec"
 	"github.com/pingcap/tidb/util/topsql/stmtstats"
 )
 
-const tidbResultSetSize int = int(unsafe.Sizeof(tidbResultSet{}))
+const sizeOfResultSetSize int = int(unsafe.Sizeof(tidbResultSet{}))
 
 // TiDBDriver implements IDriver.
 type TiDBDriver struct {
@@ -248,23 +247,20 @@ func (tc *TiDBContext) ExecuteStmt(ctx context.Context, stmt ast.StmtNode) (Resu
 			recordSet: rs,
 		}, nil
 	*/
-	return getCachedTidbResultSet(tc.Session.GetSessionVars(), rs), nil
-}
-
-func getCachedTidbResultSet(vars *variable.SessionVars, rs sqlexec.RecordSet) *tidbResultSet {
-	ptr := vars.GetObjectPointer(tidbResultSetSize)
-	if ptr == nil {
-		return &tidbResultSet{
+	var res *tidbResultSet
+	ptr := tc.Session.GetSessionVars().GetObjectPointer(sizeOfResultSetSize)
+	if ptr != nil {
+		res = (*tidbResultSet)(ptr)
+		*res = tidbResultSet{
+			recordSet: rs,
+		}
+	} else {
+		res = &tidbResultSet{
 			recordSet: rs,
 		}
 	}
-	resSet := (*tidbResultSet)(ptr)
-	resSet.recordSet = rs
-	resSet.preparedStmt = nil
-	resSet.columns = nil
-	resSet.rows = nil
-	resSet.closed = 0
-	return resSet
+
+	return res, nil
 }
 
 // Close implements QueryCtx Close method.

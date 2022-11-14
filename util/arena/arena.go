@@ -18,9 +18,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	"github.com/pingcap/tidb/types"
 )
 
@@ -102,48 +100,28 @@ type ObjectorAllocator struct {
 }
 
 func (objAlloc *ObjectorAllocator) Init() {
-	objAlloc.arena = make([]byte, 262144, 262144)
-	objAlloc.offset = 262144
+	objAlloc.arena = make([]byte, 0, 262144)
+	objAlloc.offset = 0
 	objAlloc.capacity = 262144
 }
 
 func (objAlloc *ObjectorAllocator) Reset() {
 	objAlloc.offset = 0
-}
-
-func (objAlloc *ObjectorAllocator) GetExecuteStmt() *ast.ExecuteStmt {
-	curArena := objAlloc.arena[objAlloc.offset:]
-	arenaPtr := unsafe.Pointer(&curArena)
-	objPtr := (*ast.ExecuteStmt)(unsafe.Pointer((*reflect.SliceHeader)(arenaPtr).Data))
-	typesize := int(unsafe.Sizeof(*objPtr))
-	if objAlloc.offset+typesize > objAlloc.capacity {
-		return &ast.ExecuteStmt{}
-	}
-	objAlloc.offset += typesize
-	return objPtr
-}
-
-func (objAlloc *ObjectorAllocator) GetStatementContext() *stmtctx.StatementContext {
-	curArena := objAlloc.arena[objAlloc.offset:]
-	arenaPtr := unsafe.Pointer(&curArena)
-	objPtr := (*stmtctx.StatementContext)(unsafe.Pointer((*reflect.SliceHeader)(arenaPtr).Data))
-	typesize := int(unsafe.Sizeof(*objPtr))
-	if objAlloc.offset+typesize > objAlloc.capacity {
-		return &stmtctx.StatementContext{}
-	}
-	objAlloc.offset += typesize
-	return objPtr
+	(*reflect.SliceHeader)(unsafe.Pointer(&objAlloc.arena)).Len = 0
 }
 
 func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
-	curArena := objAlloc.arena[objAlloc.offset:]
-	arenaPtr := unsafe.Pointer(&curArena)
-	objPtr := unsafe.Pointer((*reflect.SliceHeader)(arenaPtr).Data)
-
 	if objAlloc.offset+len > objAlloc.capacity {
 		return nil
 	}
+
+	curArena := objAlloc.arena[objAlloc.offset:]
+	arenaPtr := unsafe.Pointer(&curArena)
+	objPtr := unsafe.Pointer((*reflect.SliceHeader)(arenaPtr).Data)
+	// fmt.Println("objPtr:", objPtr, "data pointer: ", (*reflect.SliceHeader)(arenaPtr).Data)
+
 	objAlloc.offset += len
+	(*reflect.SliceHeader)(unsafe.Pointer(&objAlloc.arena)).Len = objAlloc.offset
 	return objPtr
 }
 

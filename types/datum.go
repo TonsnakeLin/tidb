@@ -67,7 +67,7 @@ type DatumSliceAllocator struct {
 }
 
 func (ds *DatumSliceAllocator) InitDatumSlice() {
-	ds.datums = make([]Datum, 0, 4096)
+	ds.datums = make([]Datum, 4096, 4096)
 	ds.datumsOffset = 0
 	ds.datumsCapacity = 4096
 }

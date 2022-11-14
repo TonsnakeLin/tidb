@@ -1923,17 +1923,14 @@ func (e *UnionExec) Close() error {
 func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 	vars := ctx.GetSessionVars()
 	var sc *stmtctx.StatementContext
-	/*
-		if vars.TxnCtx.CouldRetry {
-			// Must construct new statement context object, the retry history need context for every statement.
-			// TODO: Maybe one day we can get rid of transaction retry, then this logic can be deleted.
-			sc = &stmtctx.StatementContext{}
-		} else {
-			sc = vars.InitStatementContext()
-		}
-	*/
-	sc = vars.GetCachedStatementContext()
-	*sc = stmtctx.StatementContext{}
+	if vars.TxnCtx.CouldRetry {
+		// Must construct new statement context object, the retry history need context for every statement.
+		// TODO: Maybe one day we can get rid of transaction retry, then this logic can be deleted.
+		sc = &stmtctx.StatementContext{}
+	} else {
+		sc = vars.InitStatementContext()
+	}
+
 	sc.TimeZone = vars.Location()
 	sc.TaskID = stmtctx.AllocateTaskID()
 	sc.CTEStorageMap = map[int]*CTEStorages{}
