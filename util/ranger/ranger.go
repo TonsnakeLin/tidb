@@ -222,7 +222,7 @@ func convertPoint(sctx sessionctx.Context, ipoint *point, tp *types.FieldType) (
 	var npoint *point
 	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfPoint)
 	// npoint := point.Clone(casted)
-	if ptr == nil {
+	if ptr != nil {
 		npoint = (*point)(ptr)
 		*npoint = *ipoint
 	} else {
