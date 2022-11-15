@@ -16,11 +16,48 @@ package types
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/util/size"
 )
+
+const SizeOfFieldName = int(unsafe.Sizeof(FieldName{}))
+
+type FieldNameSliceAllocator struct {
+	fieldNames []*FieldName
+	offset     int
+	capacity   int
+}
+
+func (sa *FieldNameSliceAllocator) InitFieldNameSlice() {
+	sa.fieldNames = make([]*FieldName, 4096, 4096)
+	sa.offset = 0
+	sa.capacity = 4096
+}
+
+func (sa *FieldNameSliceAllocator) GetFldNameSliceByCap(cap int) []*FieldName {
+	origOffset := sa.offset
+	if origOffset+cap > sa.capacity {
+		return make([]*FieldName, 0, cap)
+	}
+	sa.offset += cap
+	return sa.fieldNames[origOffset : origOffset : origOffset+cap]
+}
+
+func (sa *FieldNameSliceAllocator) GetFldNameSliceByLen(len int) []*FieldName {
+	origOffset := sa.offset
+	if origOffset+len > sa.capacity {
+		return make([]*FieldName, len)
+	}
+	sa.offset += len
+	return sa.fieldNames[origOffset : origOffset+len : origOffset+len]
+}
+
+func (sa *FieldNameSliceAllocator) Reset() {
+	sa.offset = 0
+}
 
 // FieldName records the names used for mysql protocol.
 type FieldName struct {

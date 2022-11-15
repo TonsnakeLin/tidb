@@ -134,7 +134,7 @@ func makeStatsMapForTPCHQ5() map[int]*property.StatsInfo {
 }
 
 func newDataSource(ctx sessionctx.Context, name string, count int) LogicalPlan {
-	ds := DataSource{}.Init(ctx, 0)
+	ds := (&DataSource{}).Init(ctx, 0)
 	tan := model.NewCIStr(name)
 	ds.TableAsName = &tan
 	ds.schema = expression.NewSchema()

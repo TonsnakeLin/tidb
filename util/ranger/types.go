@@ -29,6 +29,42 @@ import (
 	"github.com/pingcap/tidb/util/collate"
 )
 
+const sizeOfRange = int(unsafe.Sizeof(Range{}))
+
+type RangeSliceAllocator struct {
+	slice    []*Range
+	offset   int
+	capacity int
+}
+
+func (sa *RangeSliceAllocator) InitRangeSlice() {
+	sa.slice = make([]*Range, 1024, 1024)
+	sa.offset = 0
+	sa.capacity = 1024
+}
+
+func (sa *RangeSliceAllocator) GetRangeSliceByCap(cap int) []*Range {
+	origOffset := sa.offset
+	if origOffset+cap > sa.capacity {
+		return make([]*Range, 0, cap)
+	}
+	sa.offset += cap
+	return sa.slice[origOffset : origOffset : origOffset+cap]
+}
+
+func (sa *RangeSliceAllocator) GetRangeSliceByLen(len int) []*Range {
+	origOffset := sa.offset
+	if origOffset+len > sa.capacity {
+		return make([]*Range, len)
+	}
+	sa.offset += len
+	return sa.slice[origOffset : origOffset+len : origOffset+len]
+}
+
+func (sa *RangeSliceAllocator) Reset() {
+	sa.offset = 0
+}
+
 // MutableRanges represents a range may change after it is created.
 // It's mainly designed for plan-cache, since some ranges in a cached plan have to be rebuild when reusing.
 type MutableRanges interface {

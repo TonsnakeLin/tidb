@@ -33,6 +33,42 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const SizeOfExprColumn = int(unsafe.Sizeof(Column{}))
+
+type ExprColumnSliceAllocator struct {
+	columns  []*Column
+	offset   int
+	capacity int
+}
+
+func (cs *ExprColumnSliceAllocator) InitColumnSlice() {
+	cs.columns = make([]*Column, 4096, 4096)
+	cs.offset = 0
+	cs.capacity = 4096
+}
+
+func (cs *ExprColumnSliceAllocator) GetColumnSliceByCap(cap int) []*Column {
+	origOffset := cs.offset
+	if origOffset+cap > cs.capacity {
+		return make([]*Column, 0, cap)
+	}
+	cs.offset += cap
+	return cs.columns[origOffset : origOffset : origOffset+cap]
+}
+
+func (cs *ExprColumnSliceAllocator) GetColumnSliceByLen(len int) []*Column {
+	origOffset := cs.offset
+	if origOffset+len > cs.capacity {
+		return make([]*Column, len)
+	}
+	cs.offset += len
+	return cs.columns[origOffset : origOffset+len : origOffset+len]
+}
+
+func (cs *ExprColumnSliceAllocator) Reset() {
+	cs.offset = 0
+}
+
 // CorrelatedColumn stands for a column in a correlated sub query.
 type CorrelatedColumn struct {
 	Column

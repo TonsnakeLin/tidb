@@ -71,6 +71,7 @@ import (
 	"github.com/pingcap/tidb/parser/auth"
 	"github.com/pingcap/tidb/parser/mysql"
 	"github.com/pingcap/tidb/parser/terror"
+	"github.com/pingcap/tidb/planner/core"
 	plannercore "github.com/pingcap/tidb/planner/core"
 	"github.com/pingcap/tidb/plugin"
 	"github.com/pingcap/tidb/privilege"
@@ -89,6 +90,7 @@ import (
 	"github.com/pingcap/tidb/util/hack"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/memory"
+	"github.com/pingcap/tidb/util/ranger"
 	tlsutil "github.com/pingcap/tidb/util/tls"
 	topsqlstate "github.com/pingcap/tidb/util/topsql/state"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1072,6 +1074,21 @@ func (cc *clientConn) Run(ctx context.Context) {
 		es.InitExprSlice()
 		sessVars.MemPoolSet.SliceAllocator.ExprSlice = es
 	}
+	if sessVars.MemPoolSet.SliceAllocator.ExprColumnSlice == nil {
+		cs := &expression.ExprColumnSliceAllocator{}
+		cs.InitColumnSlice()
+		sessVars.MemPoolSet.SliceAllocator.ExprColumnSlice = cs
+	}
+	if sessVars.MemPoolSet.SliceAllocator.UtilRangeSlice == nil {
+		rs := &ranger.RangeSliceAllocator{}
+		rs.InitRangeSlice()
+		sessVars.MemPoolSet.SliceAllocator.UtilRangeSlice = rs
+	}
+	if sessVars.MemPoolSet.SliceAllocator.VisitInfoSlice == nil {
+		vs := &core.VisitInfoSliceAllocator{}
+		vs.InitVisitInfoSlice()
+		sessVars.MemPoolSet.SliceAllocator.VisitInfoSlice = vs
+	}
 
 	// Usually, client connection status changes between [dispatching] <=> [reading].
 	// When some event happens, server may notify this client connection by setting
@@ -1089,6 +1106,8 @@ func (cc *clientConn) Run(ctx context.Context) {
 		cc.alloc.Reset()
 		sessVars.ResetMemPoolSet()
 		sessVars.MemPoolSet.SliceAllocator.ExprSlice.(*expression.ExpressionSlice).Reset()
+		sessVars.MemPoolSet.SliceAllocator.ExprSlice.(*expression.ExprColumnSliceAllocator).Reset()
+		sessVars.MemPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSliceAllocator).Reset()
 		// close connection when idle time is more than wait_timeout
 		waitTimeout := cc.getSessionVarsWaitTimeout(ctx)
 		cc.pkt.setReadTimeout(time.Duration(waitTimeout) * time.Second)

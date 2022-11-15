@@ -168,6 +168,8 @@ func GetPlanFromSessionPlanCache(ctx context.Context, sctx sessionctx.Context,
 // parseParamTypes get parameters' types in PREPARE statement
 func parseParamTypes(sctx sessionctx.Context, params []expression.Expression) (paramNum int, paramTypes []*types.FieldType) {
 	paramNum = len(params)
+	sessVars := sctx.GetSessionVars()
+	paramTypes = sessVars.GetFldTypeSliceByCap(paramNum)
 	for _, param := range params {
 		if c, ok := param.(*expression.Constant); ok { // from binary protocol
 			paramTypes = append(paramTypes, c.GetType())
@@ -176,7 +178,7 @@ func parseParamTypes(sctx sessionctx.Context, params []expression.Expression) (p
 
 		// from text protocol, there must be a GetVar function
 		name := param.(*expression.ScalarFunction).GetArgs()[0].String()
-		tp, ok := sctx.GetSessionVars().GetUserVarType(name)
+		tp, ok := sessVars.GetUserVarType(name)
 		if !ok {
 			tp = types.NewFieldType(mysql.TypeNull)
 		}
@@ -623,7 +625,7 @@ func buildRangeForIndexScan(sctx sessionctx.Context, is *PhysicalIndexScan) (err
 // CheckPreparedPriv checks the privilege of the prepared statement
 func CheckPreparedPriv(sctx sessionctx.Context, stmt *PlanCacheStmt, is infoschema.InfoSchema) error {
 	if pm := privilege.GetPrivilegeManager(sctx); pm != nil {
-		visitInfo := VisitInfo4PrivCheck(is, stmt.PreparedAst.Stmt, stmt.VisitInfos)
+		visitInfo := VisitInfo4PrivCheck(sctx, is, stmt.PreparedAst.Stmt, stmt.VisitInfos)
 		if err := CheckPrivilege(sctx.GetSessionVars().ActiveRoles, pm, visitInfo); err != nil {
 			return err
 		}

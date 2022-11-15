@@ -16,6 +16,7 @@ package staleread
 
 import (
 	"context"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/domain"
@@ -25,6 +26,8 @@ import (
 	"github.com/pingcap/tidb/sessiontxn"
 	"github.com/pingcap/tidb/table/temptable"
 )
+
+const sizeOfStaleReadProcessor = int(unsafe.Sizeof(staleReadProcessor{}))
 
 // enforce implement Processor interface
 var _ Processor = &staleReadProcessor{}
@@ -148,7 +151,14 @@ type staleReadProcessor struct {
 
 // NewStaleReadProcessor creates a new stale read processor
 func NewStaleReadProcessor(ctx context.Context, sctx sessionctx.Context) Processor {
-	p := &staleReadProcessor{}
+	var p *staleReadProcessor
+	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfStaleReadProcessor)
+	if ptr != nil {
+		p = (*staleReadProcessor)(ptr)
+		*p = staleReadProcessor{}
+	} else {
+		p = &staleReadProcessor{}
+	}
 	p.init(ctx, sctx)
 	return p
 }

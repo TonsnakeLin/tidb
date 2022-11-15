@@ -59,7 +59,7 @@ func prepareForAnalyzeLookUpFilters() *indexJoinContext {
 
 	ctx.GetSessionVars().PlanID = -1
 	joinNode := LogicalJoin{}.Init(ctx, 0)
-	dataSourceNode := DataSource{}.Init(ctx, 0)
+	dataSourceNode := (&DataSource{}).Init(ctx, 0)
 	dsSchema := expression.NewSchema()
 	var dsNames types.NameSlice
 	dsSchema.Append(&expression.Column{

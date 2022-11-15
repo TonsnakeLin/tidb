@@ -36,6 +36,40 @@ const ErrorLength = 0
 // FieldType records field type information.
 type FieldType = ast.FieldType
 
+type FieldTypeSliceAllocator struct {
+	fieldTypes []*FieldType
+	offset     int
+	capacity   int
+}
+
+func (fts *FieldTypeSliceAllocator) InitFieldTypeSlice() {
+	fts.fieldTypes = make([]*FieldType, 4096, 4096)
+	fts.offset = 0
+	fts.capacity = 4096
+}
+
+func (fts *FieldTypeSliceAllocator) GetFldTypeSliceByCap(cap int) []*FieldType {
+	origOffset := fts.offset
+	if origOffset+cap > fts.capacity {
+		return make([]*FieldType, 0, cap)
+	}
+	fts.offset += cap
+	return fts.fieldTypes[origOffset : origOffset : origOffset+cap]
+}
+
+func (fts *FieldTypeSliceAllocator) GetFldTypeSliceByLen(len int) []*FieldType {
+	origOffset := fts.offset
+	if origOffset+len > fts.capacity {
+		return make([]*FieldType, len)
+	}
+	fts.offset += len
+	return fts.fieldTypes[origOffset : origOffset+len : origOffset+len]
+}
+
+func (fts *FieldTypeSliceAllocator) Reset() {
+	fts.offset = 0
+}
+
 // NewFieldType returns a FieldType,
 // with a type and other information about field type.
 func NewFieldType(tp byte) *FieldType {
@@ -50,11 +84,28 @@ func NewFieldType(tp byte) *FieldType {
 		BuildP()
 }
 
+func NewFieldTypeUsingBuilder(fdBuilder *FieldTypeBuilder, tp byte) *FieldType {
+	charset1, collate1 := DefaultCharsetForType(tp)
+	flen, decimal := minFlenAndDecimalForType(tp)
+	return fdBuilder.
+		SetType(tp).
+		SetCharset(charset1).
+		SetCollate(collate1).
+		SetFlen(flen).
+		SetDecimal(decimal).
+		BuildP()
+}
+
 // NewFieldTypeWithCollation returns a FieldType,
 // with a type and other information about field type.
 func NewFieldTypeWithCollation(tp byte, collation string, length int) *FieldType {
 	coll, _ := charset.GetCollationByName(collation)
 	return NewFieldTypeBuilder().SetType(tp).SetFlen(length).SetCharset(coll.CharsetName).SetCollate(collation).SetDecimal(UnspecifiedLength).BuildP()
+}
+
+func NewFieldTypeWithCollationUsingBuilder(fdBuilder *FieldTypeBuilder, tp byte, collation string, length int) *FieldType {
+	coll, _ := charset.GetCollationByName(collation)
+	return fdBuilder.SetType(tp).SetFlen(length).SetCharset(coll.CharsetName).SetCollate(collation).SetDecimal(UnspecifiedLength).BuildP()
 }
 
 // AggFieldType aggregates field types for a multi-argument function like `IF`, `IFNULL`, `COALESCE`

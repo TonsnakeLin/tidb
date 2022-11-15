@@ -18,12 +18,14 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/errno"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/mysql"
+	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
@@ -44,6 +46,7 @@ const (
 	IntRangeType RangeType = iota
 	ColumnRangeType
 	IndexRangeType
+	sizeOfPoint = int(unsafe.Sizeof(point{}))
 )
 
 // Point is the end point of range interval.
@@ -181,8 +184,9 @@ func NullRange() Ranges {
 
 // builder is the range builder struct.
 type builder struct {
-	err error
-	sc  *stmtctx.StatementContext
+	err  error
+	sc   *stmtctx.StatementContext
+	sctx sessionctx.Context
 }
 
 func (r *builder) build(expr expression.Expression, collator collate.Collator) []*point {
@@ -336,7 +340,8 @@ func (r *builder) buildFromBinOp(expr *expression.ScalarFunction) []*point {
 	if ft.GetType() == mysql.TypeEnum && ft.EvalType() == types.ETString {
 		return handleEnumFromBinOp(r.sc, ft, value, op)
 	}
-
+	ptr1 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint)
+	ptr2 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint)
 	switch op {
 	case ast.NullEQ:
 		if value.IsNull() {
@@ -344,8 +349,16 @@ func (r *builder) buildFromBinOp(expr *expression.ScalarFunction) []*point {
 		}
 		fallthrough
 	case ast.EQ:
-		startPoint := &point{value: value, start: true}
-		endPoint := &point{value: value}
+		var startPoint, endPoint *point
+		if ptr1 != nil && ptr2 != nil {
+			startPoint = (*point)(ptr1)
+			endPoint = (*point)(ptr2)
+			*startPoint = point{value: value, start: true}
+			*endPoint = point{value: value}
+		} else {
+			startPoint = &point{value: value, start: true}
+			endPoint = &point{value: value}
+		}
 		return []*point{startPoint, endPoint}
 	case ast.NE:
 		startPoint1 := &point{value: types.MinNotNullDatum(), start: true}
@@ -362,12 +375,28 @@ func (r *builder) buildFromBinOp(expr *expression.ScalarFunction) []*point {
 		endPoint := &point{value: value}
 		return []*point{startPoint, endPoint}
 	case ast.GT:
-		startPoint := &point{value: value, start: true, excl: true}
-		endPoint := &point{value: types.MaxValueDatum()}
+		var startPoint, endPoint *point
+		if ptr1 != nil && ptr2 != nil {
+			startPoint = (*point)(ptr1)
+			endPoint = (*point)(ptr2)
+			*startPoint = point{value: value, start: true, excl: true}
+			*endPoint = point{value: types.MaxValueDatum()}
+		} else {
+			startPoint = &point{value: value, start: true, excl: true}
+			endPoint = &point{value: types.MaxValueDatum()}
+		}
 		return []*point{startPoint, endPoint}
 	case ast.GE:
-		startPoint := &point{value: value, start: true}
-		endPoint := &point{value: types.MaxValueDatum()}
+		var startPoint, endPoint *point
+		if ptr1 != nil && ptr2 != nil {
+			startPoint = (*point)(ptr1)
+			endPoint = (*point)(ptr2)
+			*startPoint = point{value: value, start: true}
+			*endPoint = point{value: types.MaxValueDatum()}
+		} else {
+			startPoint = &point{value: value, start: true}
+			endPoint = &point{value: types.MaxValueDatum()}
+		}
 		return []*point{startPoint, endPoint}
 	}
 	return nil

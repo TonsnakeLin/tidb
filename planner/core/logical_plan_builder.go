@@ -4542,43 +4542,101 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 			}
 		}
 	}
-	ds := DataSource{
-		DBName:              dbName,
-		TableAsName:         asName,
-		table:               tbl,
-		tableInfo:           tableInfo,
-		physicalTableID:     tableInfo.ID,
-		astIndexHints:       tn.IndexHints,
-		IndexHints:          b.TableHints().indexHintList,
-		indexMergeHints:     indexMergeHints,
-		possibleAccessPaths: possiblePaths,
-		Columns:             make([]*model.ColumnInfo, 0, len(columns)),
-		partitionNames:      tn.PartitionNames,
-		TblCols:             make([]*expression.Column, 0, len(columns)),
-		preferPartitions:    make(map[int][]model.CIStr),
-		is:                  b.is,
-		isForUpdateRead:     b.isForUpdateRead,
-	}.Init(b.ctx, b.getSelectOffset())
+	var ds *DataSource
+	modelColumns := sessionVars.GetModelColumnInfoSliceByCap(len(columns))
+	tblCols := sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+
+	ptr := sessionVars.GetObjectPointer(SizeOfDataSource)
+	if ptr != nil {
+		ds = (*DataSource)(ptr)
+		*ds = DataSource{
+			DBName:              dbName,
+			TableAsName:         asName,
+			table:               tbl,
+			tableInfo:           tableInfo,
+			physicalTableID:     tableInfo.ID,
+			astIndexHints:       tn.IndexHints,
+			IndexHints:          b.TableHints().indexHintList,
+			indexMergeHints:     indexMergeHints,
+			possibleAccessPaths: possiblePaths,
+			Columns:             modelColumns,
+			partitionNames:      tn.PartitionNames,
+			TblCols:             tblCols,
+			preferPartitions:    make(map[int][]model.CIStr),
+			is:                  b.is,
+			isForUpdateRead:     b.isForUpdateRead,
+		}
+	} else {
+		ds = &DataSource{
+			DBName:              dbName,
+			TableAsName:         asName,
+			table:               tbl,
+			tableInfo:           tableInfo,
+			physicalTableID:     tableInfo.ID,
+			astIndexHints:       tn.IndexHints,
+			IndexHints:          b.TableHints().indexHintList,
+			indexMergeHints:     indexMergeHints,
+			possibleAccessPaths: possiblePaths,
+			Columns:             modelColumns,
+			partitionNames:      tn.PartitionNames,
+			TblCols:             tblCols,
+			preferPartitions:    make(map[int][]model.CIStr),
+			is:                  b.is,
+			isForUpdateRead:     b.isForUpdateRead,
+		}
+	}
+	ds.Init(b.ctx, b.getSelectOffset())
 	var handleCols HandleCols
-	schema := expression.NewSchema(make([]*expression.Column, 0, len(columns))...)
-	names := make([]*types.FieldName, 0, len(columns))
+	exprColumns := sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+	schema := expression.NewSchema(exprColumns...)
+	// names := make([]*types.FieldName, 0, len(columns))
+	names := sessionVars.GetFldNameSliceByCap(len(columns))
 	for i, col := range columns {
 		ds.Columns = append(ds.Columns, col.ToInfo())
-		names = append(names, &types.FieldName{
-			DBName:      dbName,
-			TblName:     tableInfo.Name,
-			ColName:     col.Name,
-			OrigTblName: tableInfo.Name,
-			OrigColName: col.Name,
-			// For update statement and delete statement, internal version should see the special middle state column, while user doesn't.
-			NotExplicitUsable: col.State != model.StatePublic,
-		})
-		newCol := &expression.Column{
-			UniqueID: sessionVars.AllocPlanColumnID(),
-			ID:       col.ID,
-			RetType:  col.FieldType.Clone(),
-			OrigName: names[i].String(),
-			IsHidden: col.Hidden,
+		var fldNames *types.FieldName
+		ptr := sessionVars.GetObjectPointer(types.SizeOfFieldName)
+		if ptr != nil {
+			fldNames = (*types.FieldName)(ptr)
+			*fldNames = types.FieldName{
+				DBName:      dbName,
+				TblName:     tableInfo.Name,
+				ColName:     col.Name,
+				OrigTblName: tableInfo.Name,
+				OrigColName: col.Name,
+				// For update statement and delete statement, internal version should see the special middle state column, while user doesn't.
+				NotExplicitUsable: col.State != model.StatePublic,
+			}
+		} else {
+			fldNames = &types.FieldName{
+				DBName:      dbName,
+				TblName:     tableInfo.Name,
+				ColName:     col.Name,
+				OrigTblName: tableInfo.Name,
+				OrigColName: col.Name,
+				// For update statement and delete statement, internal version should see the special middle state column, while user doesn't.
+				NotExplicitUsable: col.State != model.StatePublic,
+			}
+		}
+		names = append(names, fldNames)
+		var newCol *expression.Column
+		ptr = sessionVars.GetObjectPointer(types.SizeOfFieldName)
+		if ptr != nil {
+			newCol = (*expression.Column)(ptr)
+			*newCol = expression.Column{
+				UniqueID: sessionVars.AllocPlanColumnID(),
+				ID:       col.ID,
+				RetType:  col.FieldType.Clone(),
+				OrigName: names[i].String(),
+				IsHidden: col.Hidden,
+			}
+		} else {
+			newCol = &expression.Column{
+				UniqueID: sessionVars.AllocPlanColumnID(),
+				ID:       col.ID,
+				RetType:  col.FieldType.Clone(),
+				OrigName: names[i].String(),
+				IsHidden: col.Hidden,
+			}
 		}
 		if col.IsPKHandleColumn(tableInfo) {
 			handleCols = &IntHandleCols{col: newCol}

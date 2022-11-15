@@ -18,9 +18,78 @@ import (
 	"reflect"
 	"unsafe"
 
+	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/types"
 )
+
+type IntSliceAllocator struct {
+	slice    []int
+	offset   int
+	capacity int
+}
+
+func (sa *IntSliceAllocator) InitIntSlice() {
+	sa.slice = make([]int, 4096, 4096)
+	sa.offset = 0
+	sa.capacity = 4096
+}
+
+func (sa *IntSliceAllocator) GetIntSliceByCap(cap int) []int {
+	origOffset := sa.offset
+	if origOffset+cap > sa.capacity {
+		return make([]int, 0, cap)
+	}
+	sa.offset += cap
+	return sa.slice[origOffset : origOffset : origOffset+cap]
+}
+
+func (sa *IntSliceAllocator) GetIntSliceByLen(len int) []int {
+	origOffset := sa.offset
+	if origOffset+len > sa.capacity {
+		return make([]int, len)
+	}
+	sa.offset += len
+	return sa.slice[origOffset : origOffset+len : origOffset+len]
+}
+
+func (sa *IntSliceAllocator) Reset() {
+	sa.offset = 0
+}
+
+type ByteSliceAllocator struct {
+	slice    []byte
+	offset   int
+	capacity int
+}
+
+func (sa *ByteSliceAllocator) InitByteSlice() {
+	sa.slice = make([]byte, 4096, 4096)
+	sa.offset = 0
+	sa.capacity = 4096
+}
+
+func (sa *ByteSliceAllocator) GetByteSliceByCap(cap int) []byte {
+	origOffset := sa.offset
+	if origOffset+cap > sa.capacity {
+		return make([]byte, 0, cap)
+	}
+	sa.offset += cap
+	return sa.slice[origOffset : origOffset : origOffset+cap]
+}
+
+func (sa *ByteSliceAllocator) GetByteSliceByLen(len int) []byte {
+	origOffset := sa.offset
+	if origOffset+len > sa.capacity {
+		return make([]byte, len)
+	}
+	sa.offset += len
+	return sa.slice[origOffset : origOffset+len : origOffset+len]
+}
+
+func (sa *ByteSliceAllocator) Reset() {
+	sa.offset = 0
+}
 
 // Allocator pre-allocates memory to reduce memory allocation cost.
 // It is not thread-safe.
@@ -126,20 +195,59 @@ func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
 }
 
 type SliceAlloctor struct {
-	ExprSlice  any
-	DatumSlice *types.DatumSliceAllocator
+	ExprSlice       any
+	ExprColumnSlice any
+	UtilRangeSlice  any
+	VisitInfoSlice  any
+	IntSlice        *IntSliceAllocator
+	ByteSlice       *ByteSliceAllocator
+	DatumSlice      *types.DatumSliceAllocator
+	FieldTypeSlice  *types.FieldTypeSliceAllocator
+	FieldNameSlice  *types.FieldNameSliceAllocator
+	ModelColumnInfo *model.ModelColumnInfoSliceAllocator
+
+	TableAliasInJoin []map[string]interface{}
+	CteCanUsed       []string
+	CteBeforeOffset  []int
 }
 
 func (sa *SliceAlloctor) Reset() {
 	sa.DatumSlice.Reset()
+	sa.FieldTypeSlice.Reset()
+	sa.FieldNameSlice.Reset()
+	sa.ModelColumnInfo.Reset()
+	sa.IntSlice.Reset()
+	sa.ByteSlice.Reset()
+	sa.TableAliasInJoin = sa.TableAliasInJoin[0:]
+	sa.CteCanUsed = sa.CteCanUsed[0:]
+	sa.CteBeforeOffset = sa.CteBeforeOffset[0:]
+}
+
+func (sa *SliceAlloctor) InitSliceAlloctor() {
+	sa.DatumSlice = &types.DatumSliceAllocator{}
+	sa.FieldTypeSlice = &types.FieldTypeSliceAllocator{}
+	sa.FieldNameSlice = &types.FieldNameSliceAllocator{}
+	sa.ModelColumnInfo = &model.ModelColumnInfoSliceAllocator{}
+	sa.IntSlice = &IntSliceAllocator{}
+	sa.DatumSlice.InitDatumSlice()
+	sa.FieldTypeSlice.InitFieldTypeSlice()
+	sa.FieldNameSlice.InitFieldNameSlice()
+	sa.ModelColumnInfo.InitColumnInfoSlice()
+	sa.IntSlice.InitIntSlice()
+	sa.ByteSlice.InitByteSlice()
+
+	sa.TableAliasInJoin = make([]map[string]interface{}, 0)
+	sa.CteCanUsed = make([]string, 0)
+	sa.CteBeforeOffset = make([]int, 0)
 }
 
 type MapAllocator struct {
 	// StmtCtxsmall maps
-	StatsLoadStatus   map[model.TableItemID]string
-	LockTableIDs      map[int64]struct{}
-	TblInfo2UnionScan map[*model.TableInfo]bool
-	TableStats        map[int64]interface{}
+	StatsLoadStatus      map[model.TableItemID]string
+	LockTableIDs         map[int64]struct{}
+	TblInfo2UnionScan    map[*model.TableInfo]bool
+	TableStats           map[int64]interface{}
+	isolationReadEngines map[kv.StoreType]struct{}
 }
 
 func (ma *MapAllocator) InitMapAllocator() {
@@ -147,6 +255,7 @@ func (ma *MapAllocator) InitMapAllocator() {
 	ma.LockTableIDs = make(map[int64]struct{})
 	ma.TblInfo2UnionScan = make(map[*model.TableInfo]bool, 2)
 	ma.TableStats = make(map[int64]interface{})
+	ma.isolationReadEngines = make(map[kv.StoreType]struct{}, 3)
 }
 
 func (ma *MapAllocator) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
@@ -175,6 +284,13 @@ func (ma *MapAllocator) GetTableStatsMap() map[int64]interface{} {
 		delete(ma.TableStats, k)
 	}
 	return ma.TableStats
+}
+
+func (ma *MapAllocator) GetIsolationReadEnginesMap() map[kv.StoreType]struct{} {
+	for k := range ma.isolationReadEngines {
+		delete(ma.isolationReadEngines, k)
+	}
+	return ma.isolationReadEngines
 }
 
 func (ma *MapAllocator) Reset() {

@@ -55,6 +55,40 @@ const (
 	 */
 )
 
+type ModelColumnInfoSliceAllocator struct {
+	columnInfos []*ColumnInfo
+	offset      int
+	capacity    int
+}
+
+func (sa *ModelColumnInfoSliceAllocator) InitColumnInfoSlice() {
+	sa.columnInfos = make([]*ColumnInfo, 4096, 4096)
+	sa.offset = 0
+	sa.capacity = 4096
+}
+
+func (sa *ModelColumnInfoSliceAllocator) GetColumnInfoSliceByCap(cap int) []*ColumnInfo {
+	origOffset := sa.offset
+	if origOffset+cap > sa.capacity {
+		return make([]*ColumnInfo, 0, cap)
+	}
+	sa.offset += cap
+	return sa.columnInfos[origOffset : origOffset : origOffset+cap]
+}
+
+func (sa *ModelColumnInfoSliceAllocator) GetColumnInfoSliceByLen(len int) []*ColumnInfo {
+	origOffset := sa.offset
+	if origOffset+len > sa.capacity {
+		return make([]*ColumnInfo, len)
+	}
+	sa.offset += len
+	return sa.columnInfos[origOffset : origOffset+len : origOffset+len]
+}
+
+func (sa *ModelColumnInfoSliceAllocator) Reset() {
+	sa.offset = 0
+}
+
 // String implements fmt.Stringer interface.
 func (s SchemaState) String() string {
 	switch s {

@@ -698,8 +698,8 @@ func TestCS3389(t *testing.T) {
 
 func TestAllocID(t *testing.T) {
 	ctx := MockContext()
-	pA := DataSource{}.Init(ctx, 0)
-	pB := DataSource{}.Init(ctx, 0)
+	pA := (&DataSource{}).Init(ctx, 0)
+	pB := (&DataSource{}).Init(ctx, 0)
 	require.Equal(t, pB.id, pA.id+1)
 }
 

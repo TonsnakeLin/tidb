@@ -16,6 +16,7 @@ package ranger
 
 import (
 	"math"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/expression"
@@ -28,6 +29,9 @@ import (
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/collate"
 )
+
+const sizeOfRangeDetacher = int(unsafe.Sizeof(rangeDetacher{}))
+const SizeOfDetachRangeResult = int(unsafe.Sizeof(DetachRangeResult{}))
 
 // detachColumnCNFConditions detaches the condition for calculating range from the other conditions.
 // Please make sure that the top level is CNF form.
@@ -271,7 +275,15 @@ func (d *rangeDetacher) detachCNFCondAndBuildRangeForIndex(conditions []expressi
 		ranges  Ranges
 		err     error
 	)
-	res := &DetachRangeResult{}
+
+	var res *DetachRangeResult
+	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult)
+	if ptr != nil {
+		res = (*DetachRangeResult)(ptr)
+		*res = DetachRangeResult{}
+	} else {
+		res = &DetachRangeResult{}
+	}
 
 	accessConds, filterConds, newConditions, columnValues, emptyRange := ExtractEqAndInCondition(d.sctx, conditions, d.cols, d.lengths)
 	if emptyRange {
@@ -554,13 +566,18 @@ func extractValueInfo(expr expression.Expression) *valueInfo {
 func ExtractEqAndInCondition(sctx sessionctx.Context, conditions []expression.Expression, cols []*expression.Column,
 	lengths []int) ([]expression.Expression, []expression.Expression, []expression.Expression, []*valueInfo, bool) {
 	var filters []expression.Expression
-	rb := builder{sc: sctx.GetSessionVars().StmtCtx}
-	accesses := make([]expression.Expression, len(cols))
+	rb := builder{sc: sctx.GetSessionVars().StmtCtx, sctx: sctx}
+	sessionVars := sctx.GetSessionVars()
+	// accesses := make([]expression.Expression, len(cols))
+	accesses := sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(len(cols))
 	points := make([][]*point, len(cols))
-	mergedAccesses := make([]expression.Expression, len(cols))
-	newConditions := make([]expression.Expression, 0, len(conditions))
+	// mergedAccesses := make([]expression.Expression, len(cols))
+	mergedAccesses := sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(len(cols))
+	// newConditions := make([]expression.Expression, 0, len(conditions))
+	newConditions := sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByCap(len(conditions))
 	columnValues := make([]*valueInfo, len(cols))
-	offsets := make([]int, len(conditions))
+	// offsets := make([]int, len(conditions))
+	offsets := sessionVars.GetIntSliceByLen(len(conditions))
 	for i, cond := range conditions {
 		offset := getPotentialEqOrInColOffset(sctx, cond, cols)
 		offsets[i] = offset
@@ -662,7 +679,7 @@ func (d *rangeDetacher) detachDNFCondAndBuildRangeForIndex(condition *expression
 		length:                   d.lengths[0],
 		optPrefixIndexSingleScan: d.sctx.GetSessionVars().OptPrefixIndexSingleScan,
 	}
-	rb := builder{sc: d.sctx.GetSessionVars().StmtCtx}
+	rb := builder{sc: d.sctx.GetSessionVars().StmtCtx, sctx: d.sctx}
 	dnfItems := expression.FlattenDNFConditions(condition)
 	newAccessItems := make([]expression.Expression, 0, len(dnfItems))
 	var totalRanges Ranges
@@ -850,8 +867,16 @@ type rangeDetacher struct {
 }
 
 func (d *rangeDetacher) detachCondAndBuildRangeForCols() (*DetachRangeResult, error) {
-	res := &DetachRangeResult{}
-	newTpSlice := make([]*types.FieldType, 0, len(d.cols))
+	var res *DetachRangeResult
+	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult)
+	if ptr != nil {
+		res = (*DetachRangeResult)(ptr)
+		*res = DetachRangeResult{}
+	} else {
+		res = &DetachRangeResult{}
+	}
+	// newTpSlice := make([]*types.FieldType, 0, len(d.cols))
+	newTpSlice := d.sctx.GetSessionVars().GetFldTypeSliceByCap(len(d.cols))
 	for _, col := range d.cols {
 		newTpSlice = append(newTpSlice, newFieldType(col.RetType))
 	}

@@ -56,6 +56,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var sizeOfPointGetPlan = int(unsafe.Sizeof(PointGetPlan{}))
+
 // PointGetPlan is a fast plan for simple point get.
 // When we detect that the statement has a unique equal access condition, this plan is used.
 // This plan is much faster to build and to execute because it avoid the optimization and coprocessor cost.
@@ -939,7 +941,7 @@ func tryWhereIn2BatchPointGet(ctx sessionctx.Context, selStmt *ast.SelectStmt) *
 		}
 	}
 
-	schema, names := buildSchemaFromFields(tblName.Schema, tbl, tblAlias, selStmt.Fields.Fields)
+	schema, names := buildSchemaFromFields(ctx, tblName.Schema, tbl, tblAlias, selStmt.Fields.Fields)
 	if schema == nil {
 		return nil
 	}
@@ -1036,7 +1038,7 @@ func tryPointGetPlan(ctx sessionctx.Context, selStmt *ast.SelectStmt, check bool
 			return nil
 		}
 	}
-	schema, names := buildSchemaFromFields(tblName.Schema, tbl, tblAlias, selStmt.Fields.Fields)
+	schema, names := buildSchemaFromFields(ctx, tblName.Schema, tbl, tblAlias, selStmt.Fields.Fields)
 	if schema == nil {
 		return nil
 	}
@@ -1198,14 +1200,29 @@ func partitionNameInSet(name model.CIStr, pnames []model.CIStr) bool {
 }
 
 func newPointGetPlan(ctx sessionctx.Context, dbName string, schema *expression.Schema, tbl *model.TableInfo, names []*types.FieldName) *PointGetPlan {
-	p := &PointGetPlan{
-		basePlan:     newBasePlan(ctx, plancodec.TypePointGet, 0),
-		dbName:       dbName,
-		schema:       schema,
-		TblInfo:      tbl,
-		outputNames:  names,
-		LockWaitTime: ctx.GetSessionVars().LockWaitTimeout,
+	var p *PointGetPlan
+	ptr := ctx.GetSessionVars().GetObjectPointer(sizeOfPointGetPlan)
+	if ptr != nil {
+		p = (*PointGetPlan)(ptr)
+		*p = PointGetPlan{
+			basePlan:     newBasePlan(ctx, plancodec.TypePointGet, 0),
+			dbName:       dbName,
+			schema:       schema,
+			TblInfo:      tbl,
+			outputNames:  names,
+			LockWaitTime: ctx.GetSessionVars().LockWaitTimeout,
+		}
+	} else {
+		p = &PointGetPlan{
+			basePlan:     newBasePlan(ctx, plancodec.TypePointGet, 0),
+			dbName:       dbName,
+			schema:       schema,
+			TblInfo:      tbl,
+			outputNames:  names,
+			LockWaitTime: ctx.GetSessionVars().LockWaitTimeout,
+		}
 	}
+
 	ctx.GetSessionVars().StmtCtx.Tables = []stmtctx.TableEntry{{DB: dbName, Table: tbl.Name.L}}
 	return p
 }
@@ -1233,6 +1250,7 @@ func checkFastPlanPrivilege(ctx sessionctx.Context, dbName, tableName string, ch
 }
 
 func buildSchemaFromFields(
+	ctx sessionctx.Context,
 	dbName model.CIStr,
 	tbl *model.TableInfo,
 	tblName model.CIStr,
@@ -1241,8 +1259,12 @@ func buildSchemaFromFields(
 	*expression.Schema,
 	[]*types.FieldName,
 ) {
-	columns := make([]*expression.Column, 0, len(tbl.Columns)+1)
-	names := make([]*types.FieldName, 0, len(tbl.Columns)+1)
+	sessVars := ctx.GetSessionVars()
+	// columns := make([]*expression.Column, 0, len(tbl.Columns)+1)
+	columns := sessVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).
+		GetColumnSliceByCap(len(tbl.Columns) + 1)
+	// names := make([]*types.FieldName, 0, len(tbl.Columns)+1)
+	names := sessVars.GetFldNameSliceByCap(len(tbl.Columns) + 1)
 	if len(fields) > 0 {
 		for _, field := range fields {
 			if field.WildCard != nil {
@@ -1256,7 +1278,7 @@ func buildSchemaFromFields(
 						TblName:     tblName,
 						ColName:     col.Name,
 					})
-					columns = append(columns, colInfoToColumn(col, len(columns)))
+					columns = append(columns, colInfoToColumn(ctx, col, len(columns)))
 				}
 				continue
 			}
@@ -1282,19 +1304,32 @@ func buildSchemaFromFields(
 				OrigColName: col.Name,
 				ColName:     asName,
 			})
-			columns = append(columns, colInfoToColumn(col, len(columns)))
+			columns = append(columns, colInfoToColumn(ctx, col, len(columns)))
 		}
 		return expression.NewSchema(columns...), names
 	}
 	// fields len is 0 for update and delete.
 	for _, col := range tbl.Columns {
-		names = append(names, &types.FieldName{
-			DBName:      dbName,
-			OrigTblName: tbl.Name,
-			TblName:     tblName,
-			ColName:     col.Name,
-		})
-		column := colInfoToColumn(col, len(columns))
+		var fldName *types.FieldName
+		ptr := sessVars.GetObjectPointer(types.SizeOfFieldName)
+		if ptr != nil {
+			fldName = (*types.FieldName)(ptr)
+			*fldName = types.FieldName{
+				DBName:      dbName,
+				OrigTblName: tbl.Name,
+				TblName:     tblName,
+				ColName:     col.Name,
+			}
+		} else {
+			fldName = &types.FieldName{
+				DBName:      dbName,
+				OrigTblName: tbl.Name,
+				TblName:     tblName,
+				ColName:     col.Name,
+			}
+		}
+		names = append(names, fldName)
+		column := colInfoToColumn(ctx, col, len(columns))
 		columns = append(columns, column)
 	}
 	schema := expression.NewSchema(columns...)
@@ -1709,14 +1744,37 @@ func findCol(tbl *model.TableInfo, colName *ast.ColumnName) *model.ColumnInfo {
 	return nil
 }
 
-func colInfoToColumn(col *model.ColumnInfo, idx int) *expression.Column {
-	return &expression.Column{
+func colInfoToColumn(ctx sessionctx.Context, col *model.ColumnInfo, idx int) *expression.Column {
+	if ctx == nil {
+		return &expression.Column{
+			RetType:  col.FieldType.Clone(),
+			ID:       col.ID,
+			UniqueID: int64(col.Offset),
+			Index:    idx,
+			OrigName: col.Name.L,
+		}
+	}
+
+	ptr := ctx.GetSessionVars().GetObjectPointer(expression.SizeOfExprColumn)
+	if ptr == nil {
+		return &expression.Column{
+			RetType:  col.FieldType.Clone(),
+			ID:       col.ID,
+			UniqueID: int64(col.Offset),
+			Index:    idx,
+			OrigName: col.Name.L,
+		}
+	}
+
+	exprColumn := (*expression.Column)(ptr)
+	*exprColumn = expression.Column{
 		RetType:  col.FieldType.Clone(),
 		ID:       col.ID,
 		UniqueID: int64(col.Offset),
 		Index:    idx,
 		OrigName: col.Name.L,
 	}
+	return exprColumn
 }
 
 func buildHandleCols(ctx sessionctx.Context, tbl *model.TableInfo, schema *expression.Schema) HandleCols {
@@ -1734,7 +1792,7 @@ func buildHandleCols(ctx sessionctx.Context, tbl *model.TableInfo, schema *expre
 		return NewCommonHandleCols(ctx.GetSessionVars().StmtCtx, tbl, pkIdx, schema.Columns)
 	}
 
-	handleCol := colInfoToColumn(model.NewExtraHandleColInfo(), schema.Len())
+	handleCol := colInfoToColumn(ctx, model.NewExtraHandleColInfo(), schema.Len())
 	schema.Append(handleCol)
 	return &IntHandleCols{col: handleCol}
 }

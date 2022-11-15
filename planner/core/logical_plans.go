@@ -75,6 +75,8 @@ const (
 	LeftOuterSemiJoin
 	// AntiLeftOuterSemiJoin means if row a in table A matches some rows in B, output (a, false), otherwise, output (a, true).
 	AntiLeftOuterSemiJoin
+
+	SizeOfDataSource = int(unsafe.Sizeof(DataSource{}))
 )
 
 // IsOuterJoin returns if this joiner is an outer joiner

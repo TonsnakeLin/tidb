@@ -69,6 +69,40 @@ import (
 	"go.uber.org/zap"
 )
 
+type VisitInfoSliceAllocator struct {
+	slice    []visitInfo
+	offset   int
+	capacity int
+}
+
+func (sa *VisitInfoSliceAllocator) InitVisitInfoSlice() {
+	sa.slice = make([]visitInfo, 64, 64)
+	sa.offset = 0
+	sa.capacity = 64
+}
+
+func (sa *VisitInfoSliceAllocator) GetVisitInfoSliceByCap(cap int) []visitInfo {
+	origOffset := sa.offset
+	if origOffset+cap > sa.capacity {
+		return make([]visitInfo, 0, cap)
+	}
+	sa.offset += cap
+	return sa.slice[origOffset : origOffset : origOffset+cap]
+}
+
+func (sa *VisitInfoSliceAllocator) GetVisitInfoSliceByLen(len int) []visitInfo {
+	origOffset := sa.offset
+	if origOffset+len > sa.capacity {
+		return make([]visitInfo, len)
+	}
+	sa.offset += len
+	return sa.slice[origOffset : origOffset+len : origOffset+len]
+}
+
+func (sa *VisitInfoSliceAllocator) Reset() {
+	sa.offset = 0
+}
+
 type visitInfo struct {
 	privilege        mysql.PrivilegeType
 	db               string
@@ -848,7 +882,9 @@ func (b *PlanBuilder) buildChange(v *ast.ChangeStmt) (Plan, error) {
 }
 
 func (b *PlanBuilder) buildExecute(ctx context.Context, v *ast.ExecuteStmt) (Plan, error) {
-	vars := make([]expression.Expression, 0, len(v.UsingVars))
+	// vars := make([]expression.Expression, 0, len(v.UsingVars))
+	sessVars := b.ctx.GetSessionVars()
+	vars := sessVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByCap(len(v.UsingVars))
 	for _, expr := range v.UsingVars {
 		newExpr, _, err := b.rewrite(ctx, expr, nil, nil, true)
 		if err != nil {
@@ -857,11 +893,19 @@ func (b *PlanBuilder) buildExecute(ctx context.Context, v *ast.ExecuteStmt) (Pla
 		vars = append(vars, newExpr)
 	}
 
-	prepStmt, err := GetPreparedStmt(v, b.ctx.GetSessionVars())
+	prepStmt, err := GetPreparedStmt(v, sessVars)
 	if err != nil {
 		return nil, err
 	}
-	exe := &Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
+	// exe := &Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
+	var exe *Execute
+	ptr := sessVars.GetObjectPointer(sizeOfExecute)
+	if ptr != nil {
+		exe = (*Execute)(ptr)
+		*exe = Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
+	} else {
+		exe = &Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
+	}
 	if v.BinaryArgs != nil {
 		exe.Params = v.BinaryArgs.([]expression.Expression)
 	}
@@ -2266,7 +2310,7 @@ func (b *PlanBuilder) buildAnalyzeFullSamplingTask(
 			extraCol := model.NewExtraHandleColInfo()
 			// Always place _tidb_rowid at the end of colsInfo, this is corresponding to logics in `analyzeColumnsPushdown`.
 			newTask.ColsInfo = append(newTask.ColsInfo, extraCol)
-			newTask.HandleCols = &IntHandleCols{col: colInfoToColumn(extraCol, len(newTask.ColsInfo)-1)}
+			newTask.HandleCols = &IntHandleCols{col: colInfoToColumn(nil, extraCol, len(newTask.ColsInfo)-1)}
 		}
 		taskSlice = append(taskSlice, newTask)
 	}

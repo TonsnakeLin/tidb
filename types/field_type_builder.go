@@ -14,6 +14,10 @@
 
 package types
 
+import "unsafe"
+
+const SizeOfFieldTypeBuilder = int(unsafe.Sizeof(FieldTypeBuilder{}))
+
 // FieldTypeBuilder constructor
 type FieldTypeBuilder struct {
 	ft FieldType

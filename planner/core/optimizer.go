@@ -172,7 +172,7 @@ func CheckPrivilege(activeRoles []*auth.RoleIdentity, pm privilege.Manager, vs [
 // VisitInfo4PrivCheck generates privilege check infos because privilege check of local temporary tables is different
 // with normal tables. `CREATE` statement needs `CREATE TEMPORARY TABLE` privilege from the database, and subsequent
 // statements do not need any privileges.
-func VisitInfo4PrivCheck(is infoschema.InfoSchema, node ast.Node, vs []visitInfo) (privVisitInfo []visitInfo) {
+func VisitInfo4PrivCheck(sctx sessionctx.Context, is infoschema.InfoSchema, node ast.Node, vs []visitInfo) (privVisitInfo []visitInfo) {
 	if node == nil {
 		return vs
 	}
@@ -217,7 +217,8 @@ func VisitInfo4PrivCheck(is infoschema.InfoSchema, node ast.Node, vs []visitInfo
 		// Some statements ignore local temporary tables, so they should check the privileges on normal tables.
 		privVisitInfo = vs
 	default:
-		privVisitInfo = make([]visitInfo, 0, len(vs))
+		// privVisitInfo = make([]visitInfo, 0, len(vs))
+		privVisitInfo = sctx.GetSessionVars().GetVisitInfoSlice().(*VisitInfoSliceAllocator).GetVisitInfoSliceByCap(len(vs))
 		for _, v := range vs {
 			if needCheckTmpTablePriv(is, v) {
 				privVisitInfo = append(privVisitInfo, v)

@@ -137,28 +137,42 @@ func points2Ranges(sctx sessionctx.Context, rangePoints []*point, tp *types.Fiel
 		}
 		return fullRange, true, nil
 	}
-	ranges := make(Ranges, 0, len(convertedPoints)/2)
+	// ranges := make(Ranges, 0, len(convertedPoints)/2)
+	ranges := sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(convertedPoints) / 2)
 	for i := 0; i < len(convertedPoints); i += 2 {
 		startPoint, endPoint := convertedPoints[i], convertedPoints[i+1]
-		ran := &Range{
-			LowVal:      []types.Datum{startPoint.value},
-			LowExclude:  startPoint.excl,
-			HighVal:     []types.Datum{endPoint.value},
-			HighExclude: endPoint.excl,
-			Collators:   []collate.Collator{collate.GetCollator(tp.GetCollate())},
+		var ran *Range
+		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange)
+		if ptr != nil {
+			ran = (*Range)(ptr)
+			*ran = Range{
+				LowVal:      []types.Datum{startPoint.value},
+				LowExclude:  startPoint.excl,
+				HighVal:     []types.Datum{endPoint.value},
+				HighExclude: endPoint.excl,
+				Collators:   []collate.Collator{collate.GetCollator(tp.GetCollate())},
+			}
+		} else {
+			ran = &Range{
+				LowVal:      []types.Datum{startPoint.value},
+				LowExclude:  startPoint.excl,
+				HighVal:     []types.Datum{endPoint.value},
+				HighExclude: endPoint.excl,
+				Collators:   []collate.Collator{collate.GetCollator(tp.GetCollate())},
+			}
 		}
 		ranges = append(ranges, ran)
 	}
 	return ranges, false, nil
 }
 
-func convertPoint(sctx sessionctx.Context, point *point, tp *types.FieldType) (*point, error) {
+func convertPoint(sctx sessionctx.Context, ipoint *point, tp *types.FieldType) (*point, error) {
 	sc := sctx.GetSessionVars().StmtCtx
-	switch point.value.Kind() {
+	switch ipoint.value.Kind() {
 	case types.KindMaxValue, types.KindMinNotNull:
-		return point, nil
+		return ipoint, nil
 	}
-	casted, err := point.value.ConvertTo(sc, tp)
+	casted, err := ipoint.value.ConvertTo(sc, tp)
 	if err != nil {
 		if sctx.GetSessionVars().StmtCtx.InPreparedPlanBuilding {
 			// do not ignore these errors if in prepared plan building for safety
@@ -173,13 +187,13 @@ func convertPoint(sctx sessionctx.Context, point *point, tp *types.FieldType) (*
 			// Ignore the types.ErrOverflow when we convert TypeNewDecimal values.
 			// A trimmed valid boundary point value would be returned then. Accordingly, the `excl` of the point
 			// would be adjusted. Impossible ranges would be skipped by the `validInterval` call later.
-		} else if point.value.Kind() == types.KindMysqlTime && tp.GetType() == mysql.TypeTimestamp && terror.ErrorEqual(err, types.ErrWrongValue) {
+		} else if ipoint.value.Kind() == types.KindMysqlTime && tp.GetType() == mysql.TypeTimestamp && terror.ErrorEqual(err, types.ErrWrongValue) {
 			// See issue #28424: query failed after add index
 			// Ignore conversion from Date[Time] to Timestamp since it must be either out of range or impossible date, which will not match a point select
 		} else if tp.GetType() == mysql.TypeEnum && terror.ErrorEqual(err, types.ErrTruncated) {
 			// Ignore the types.ErrorTruncated when we convert TypeEnum values.
 			// We should cover Enum upper overflow, and convert to the biggest value.
-			if point.value.GetInt64() > 0 {
+			if ipoint.value.GetInt64() > 0 {
 				upperEnum, err := types.ParseEnumValue(tp.GetElems(), uint64(len(tp.GetElems())))
 				if err != nil {
 					return nil, err
@@ -190,17 +204,25 @@ func convertPoint(sctx sessionctx.Context, point *point, tp *types.FieldType) (*
 			// The invalid string can be produced by changing datum's underlying bytes directly.
 			// For example, newBuildFromPatternLike calculates the end point by adding 1 to bytes.
 			// We need to skip these invalid strings.
-			return point, nil
+			return ipoint, nil
 		} else {
-			return point, errors.Trace(err)
+			return ipoint, errors.Trace(err)
 		}
 		//revive:enable:empty-block
 	}
-	valCmpCasted, err := point.value.Compare(sc, &casted, collate.GetCollator(tp.GetCollate()))
+	valCmpCasted, err := ipoint.value.Compare(sc, &casted, collate.GetCollator(tp.GetCollate()))
 	if err != nil {
-		return point, errors.Trace(err)
+		return ipoint, errors.Trace(err)
 	}
-	npoint := point.Clone(casted)
+	var npoint *point
+	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfPoint)
+	// npoint := point.Clone(casted)
+	if ptr == nil {
+		npoint = (*point)(ptr)
+		*npoint = *ipoint
+	} else {
+		npoint = ipoint.Clone(casted)
+	}
 	if valCmpCasted == 0 {
 		return npoint, nil
 	}
@@ -285,7 +307,7 @@ func appendPoints2Ranges(sctx sessionctx.Context, origin Ranges, rangePoints []*
 		if !oRange.IsPoint(sctx) {
 			newIndexRanges = append(newIndexRanges, oRange)
 		} else {
-			newRanges, err := appendPoints2IndexRange(oRange, convertedPoints, ft)
+			newRanges, err := appendPoints2IndexRange(sctx, oRange, convertedPoints, ft)
 			if err != nil {
 				return nil, false, errors.Trace(err)
 			}
@@ -295,30 +317,46 @@ func appendPoints2Ranges(sctx sessionctx.Context, origin Ranges, rangePoints []*
 	return newIndexRanges, false, nil
 }
 
-func appendPoints2IndexRange(origin *Range, rangePoints []*point, ft *types.FieldType) (Ranges, error) {
-	newRanges := make(Ranges, 0, len(rangePoints)/2)
+func appendPoints2IndexRange(sctx sessionctx.Context, origin *Range, rangePoints []*point, ft *types.FieldType) (Ranges, error) {
+	//newRanges := make(Ranges, 0, len(rangePoints)/2)
+	newRanges := sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(rangePoints) / 2)
 	for i := 0; i < len(rangePoints); i += 2 {
 		startPoint, endPoint := rangePoints[i], rangePoints[i+1]
 
-		lowVal := make([]types.Datum, len(origin.LowVal)+1)
+		// lowVal := make([]types.Datum, len(origin.LowVal)+1)
+		lowVal := sctx.GetSessionVars().GetDatumSliceByLen(len(origin.LowVal) + 1)
 		copy(lowVal, origin.LowVal)
 		lowVal[len(origin.LowVal)] = startPoint.value
 
-		highVal := make([]types.Datum, len(origin.HighVal)+1)
+		// highVal := make([]types.Datum, len(origin.HighVal)+1)
+		highVal := sctx.GetSessionVars().GetDatumSliceByLen(len(origin.HighVal) + 1)
 		copy(highVal, origin.HighVal)
 		highVal[len(origin.HighVal)] = endPoint.value
 
 		collators := make([]collate.Collator, len(origin.Collators)+1)
 		copy(collators, origin.Collators)
 		collators[len(origin.Collators)] = collate.GetCollator(ft.GetCollate())
-
-		ir := &Range{
-			LowVal:      lowVal,
-			LowExclude:  startPoint.excl,
-			HighVal:     highVal,
-			HighExclude: endPoint.excl,
-			Collators:   collators,
+		var ir *Range
+		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange)
+		if ptr != nil {
+			ir = (*Range)(ptr)
+			*ir = Range{
+				LowVal:      lowVal,
+				LowExclude:  startPoint.excl,
+				HighVal:     highVal,
+				HighExclude: endPoint.excl,
+				Collators:   collators,
+			}
+		} else {
+			ir = &Range{
+				LowVal:      lowVal,
+				LowExclude:  startPoint.excl,
+				HighVal:     highVal,
+				HighExclude: endPoint.excl,
+				Collators:   collators,
+			}
 		}
+
 		newRanges = append(newRanges, ir)
 	}
 	return newRanges, nil
@@ -410,7 +448,7 @@ func points2TableRanges(sctx sessionctx.Context, rangePoints []*point, tp *types
 // The second return value is the conditions used to build ranges and the third return value is the remained conditions.
 func buildColumnRange(accessConditions []expression.Expression, sctx sessionctx.Context, tp *types.FieldType, tableRange bool,
 	colLen int, rangeMaxSize int64) (Ranges, []expression.Expression, []expression.Expression, error) {
-	rb := builder{sc: sctx.GetSessionVars().StmtCtx}
+	rb := builder{sc: sctx.GetSessionVars().StmtCtx, sctx: sctx}
 	rangePoints := getFullRange()
 	for _, cond := range accessConditions {
 		collator := collate.GetCollator(tp.GetCollate())
@@ -484,7 +522,7 @@ func BuildColumnRange(conds []expression.Expression, sctx sessionctx.Context, tp
 
 func (d *rangeDetacher) buildRangeOnColsByCNFCond(newTp []*types.FieldType, eqAndInCount int,
 	accessConds []expression.Expression) (Ranges, []expression.Expression, []expression.Expression, error) {
-	rb := builder{sc: d.sctx.GetSessionVars().StmtCtx}
+	rb := builder{sc: d.sctx.GetSessionVars().StmtCtx, sctx: d.sctx}
 	var (
 		ranges        Ranges
 		rangeFallback bool
@@ -715,6 +753,41 @@ func newFieldType(tp *types.FieldType) *types.FieldType {
 	case mysql.TypeFloat, mysql.TypeDouble, mysql.TypeBlob, mysql.TypeTinyBlob, mysql.TypeMediumBlob, mysql.TypeLongBlob,
 		mysql.TypeString, mysql.TypeVarchar, mysql.TypeVarString:
 		newTp := types.NewFieldTypeWithCollation(tp.GetType(), tp.GetCollate(), types.UnspecifiedLength)
+		newTp.SetCharset(tp.GetCharset())
+		return newTp
+	default:
+		return tp
+	}
+}
+
+func newFieldTypeUsingCache(sctx sessionctx.Context, tp *types.FieldType) *types.FieldType {
+	switch tp.GetType() {
+	// To avoid overflow error.
+	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeInt24, mysql.TypeLong, mysql.TypeLonglong:
+		var fdBuild *types.FieldTypeBuilder
+		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder)
+		if ptr != nil {
+			fdBuild = (*types.FieldTypeBuilder)(ptr)
+			*fdBuild = types.FieldTypeBuilder{}
+		} else {
+			fdBuild = &types.FieldTypeBuilder{}
+		}
+		newTp := types.NewFieldTypeUsingBuilder(fdBuild, mysql.TypeLonglong)
+		newTp.SetFlag(tp.GetFlag())
+		newTp.SetCharset(tp.GetCharset())
+		return newTp
+	// To avoid data truncate error.
+	case mysql.TypeFloat, mysql.TypeDouble, mysql.TypeBlob, mysql.TypeTinyBlob, mysql.TypeMediumBlob, mysql.TypeLongBlob,
+		mysql.TypeString, mysql.TypeVarchar, mysql.TypeVarString:
+		var fdBuild *types.FieldTypeBuilder
+		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder)
+		if ptr != nil {
+			fdBuild = (*types.FieldTypeBuilder)(ptr)
+			*fdBuild = types.FieldTypeBuilder{}
+		} else {
+			fdBuild = &types.FieldTypeBuilder{}
+		}
+		newTp := types.NewFieldTypeWithCollationUsingBuilder(fdBuild, tp.GetType(), tp.GetCollate(), types.UnspecifiedLength)
 		newTp.SetCharset(tp.GetCharset())
 		return newTp
 	default:

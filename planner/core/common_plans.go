@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/expression"
@@ -43,6 +44,8 @@ import (
 	"github.com/pingcap/tidb/util/texttree"
 	"github.com/pingcap/tipb/go-tipb"
 )
+
+const sizeOfExecute = int(unsafe.Sizeof(Execute{}))
 
 var planCacheCounter = metrics.PlanCacheCounter.WithLabelValues("prepare")
 var planCacheMissCounter = metrics.PlanCacheMissCounter.WithLabelValues("cache_miss")

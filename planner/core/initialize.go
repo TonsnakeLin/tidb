@@ -37,9 +37,9 @@ func (p LogicalJoin) Init(ctx sessionctx.Context, offset int) *LogicalJoin {
 }
 
 // Init initializes DataSource.
-func (ds DataSource) Init(ctx sessionctx.Context, offset int) *DataSource {
-	ds.baseLogicalPlan = newBaseLogicalPlan(ctx, plancodec.TypeDataSource, &ds, offset)
-	return &ds
+func (ds *DataSource) Init(ctx sessionctx.Context, offset int) *DataSource {
+	ds.baseLogicalPlan = newBaseLogicalPlan(ctx, plancodec.TypeDataSource, ds, offset)
+	return ds
 }
 
 // Init initializes TiKVSingleGather.

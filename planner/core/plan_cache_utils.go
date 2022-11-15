@@ -40,6 +40,8 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const sizeOfPlanCacheKey = int(unsafe.Sizeof(planCacheKey{}))
+
 var (
 	// PreparedPlanCacheMaxMemory stores the max memory size defined in the global config "performance-server-memory-quota".
 	PreparedPlanCacheMaxMemory = *atomic2.NewUint64(math.MaxUint64)
@@ -292,21 +294,46 @@ func NewPlanCacheKey(sessionVars *variable.SessionVars, stmtText, stmtDB string,
 	if sessionVars.TimeZone != nil {
 		_, timezoneOffset = time.Now().In(sessionVars.TimeZone).Zone()
 	}
-	key := &planCacheKey{
-		database:                 stmtDB,
-		connID:                   sessionVars.ConnectionID,
-		stmtText:                 stmtText,
-		schemaVersion:            schemaVersion,
-		lastUpdatedSchemaVersion: lastUpdatedSchemaVersion,
-		sqlMode:                  sessionVars.SQLMode,
-		timezoneOffset:           timezoneOffset,
-		isolationReadEngines:     make(map[kv.StoreType]struct{}),
-		selectLimit:              sessionVars.SelectLimit,
-		bindSQL:                  bindSQL,
-		inRestrictedSQL:          sessionVars.InRestrictedSQL,
-		restrictedReadOnly:       variable.RestrictedReadOnly.Load(),
-		TiDBSuperReadOnly:        variable.VarTiDBSuperReadOnly.Load(),
+	var key *planCacheKey
+	ptr := sessionVars.GetObjectPointer(sizeOfPlanCacheKey)
+	if ptr != nil {
+		key = (*planCacheKey)(ptr)
+		*key = planCacheKey{
+			database:                 stmtDB,
+			connID:                   sessionVars.ConnectionID,
+			stmtText:                 stmtText,
+			schemaVersion:            schemaVersion,
+			lastUpdatedSchemaVersion: lastUpdatedSchemaVersion,
+			sqlMode:                  sessionVars.SQLMode,
+			timezoneOffset:           timezoneOffset,
+			// isolationReadEngines:     make(map[kv.StoreType]struct{}),
+			isolationReadEngines: sessionVars.GetIsolationReadEnginesMap(),
+			selectLimit:          sessionVars.SelectLimit,
+			bindSQL:              bindSQL,
+			inRestrictedSQL:      sessionVars.InRestrictedSQL,
+			restrictedReadOnly:   variable.RestrictedReadOnly.Load(),
+			TiDBSuperReadOnly:    variable.VarTiDBSuperReadOnly.Load(),
+			hash:                 sessionVars.GetByteSliceByCap(256),
+		}
+	} else {
+		key = &planCacheKey{
+			database:                 stmtDB,
+			connID:                   sessionVars.ConnectionID,
+			stmtText:                 stmtText,
+			schemaVersion:            schemaVersion,
+			lastUpdatedSchemaVersion: lastUpdatedSchemaVersion,
+			sqlMode:                  sessionVars.SQLMode,
+			timezoneOffset:           timezoneOffset,
+			// isolationReadEngines:     make(map[kv.StoreType]struct{}),
+			isolationReadEngines: sessionVars.GetIsolationReadEnginesMap(),
+			selectLimit:          sessionVars.SelectLimit,
+			bindSQL:              bindSQL,
+			inRestrictedSQL:      sessionVars.InRestrictedSQL,
+			restrictedReadOnly:   variable.RestrictedReadOnly.Load(),
+			TiDBSuperReadOnly:    variable.VarTiDBSuperReadOnly.Load(),
+		}
 	}
+
 	for k, v := range sessionVars.IsolationReadEngines {
 		key.isolationReadEngines[k] = v
 	}
