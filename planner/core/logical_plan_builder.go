@@ -4543,8 +4543,13 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 		}
 	}
 	var ds *DataSource
+	var tblCols []*expression.Column
 	modelColumns := sessionVars.GetModelColumnInfoSliceByCap(len(columns))
-	tblCols := sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+	if sessionVars.GetExprCloumnSlice() != nil {
+		tblCols = sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+	} else {
+		tblCols = make([]*expression.Column, 0, len(columns))
+	}
 
 	ptr := sessionVars.GetObjectPointer(SizeOfDataSource)
 	if ptr != nil {
@@ -4587,7 +4592,13 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 	}
 	ds.Init(b.ctx, b.getSelectOffset())
 	var handleCols HandleCols
-	exprColumns := sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+	var exprColumns []*expression.Column
+	if sessionVars.GetExprCloumnSlice() != nil {
+		exprColumns = sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+	} else {
+		exprColumns = make([]*expression.Column, 0, len(columns))
+	}
+
 	schema := expression.NewSchema(exprColumns...)
 	// names := make([]*types.FieldName, 0, len(columns))
 	names := sessionVars.GetFldNameSliceByCap(len(columns))

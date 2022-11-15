@@ -177,7 +177,13 @@ func (cc *clientConn) handleStmtExecute(ctx context.Context, data []byte) (err e
 	cc.initInputEncoder(ctx)
 	numParams := stmt.NumParams()
 	// args := make([]expression.Expression, numParams)
-	args := sessVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(numParams)
+	var args []expression.Expression
+	if sessVars.GetExprSlice() != nil {
+		args = sessVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(numParams)
+	} else {
+		args = make([]expression.Expression, numParams)
+	}
+
 	if numParams > 0 {
 		nullBitmapLen := (numParams + 7) >> 3
 		if len(data) < (pos + nullBitmapLen + 1) {

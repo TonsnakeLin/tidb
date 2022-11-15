@@ -1260,9 +1260,15 @@ func buildSchemaFromFields(
 	[]*types.FieldName,
 ) {
 	sessVars := ctx.GetSessionVars()
+	var columns []*expression.Column
 	// columns := make([]*expression.Column, 0, len(tbl.Columns)+1)
-	columns := sessVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).
-		GetColumnSliceByCap(len(tbl.Columns) + 1)
+	if sessVars.GetExprCloumnSlice() != nil {
+		columns = sessVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).
+			GetColumnSliceByCap(len(tbl.Columns) + 1)
+	} else {
+		columns = make([]*expression.Column, 0, len(tbl.Columns)+1)
+	}
+
 	// names := make([]*types.FieldName, 0, len(tbl.Columns)+1)
 	names := sessVars.GetFldNameSliceByCap(len(tbl.Columns) + 1)
 	if len(fields) > 0 {

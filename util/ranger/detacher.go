@@ -569,12 +569,19 @@ func ExtractEqAndInCondition(sctx sessionctx.Context, conditions []expression.Ex
 	rb := builder{sc: sctx.GetSessionVars().StmtCtx, sctx: sctx}
 	sessionVars := sctx.GetSessionVars()
 	// accesses := make([]expression.Expression, len(cols))
-	accesses := sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(len(cols))
+	var accesses, mergedAccesses, newConditions []expression.Expression
+	if sessionVars.GetExprSlice() != nil {
+		accesses = sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(len(cols))
+		mergedAccesses = sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(len(cols))
+		newConditions = sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByCap(len(conditions))
+	} else {
+		accesses = make([]expression.Expression, len(cols))
+		mergedAccesses = make([]expression.Expression, len(cols))
+		newConditions = make([]expression.Expression, 0, len(conditions))
+	}
 	points := make([][]*point, len(cols))
 	// mergedAccesses := make([]expression.Expression, len(cols))
-	mergedAccesses := sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(len(cols))
 	// newConditions := make([]expression.Expression, 0, len(conditions))
-	newConditions := sessionVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByCap(len(conditions))
 	columnValues := make([]*valueInfo, len(cols))
 	// offsets := make([]int, len(conditions))
 	offsets := sessionVars.GetIntSliceByLen(len(conditions))

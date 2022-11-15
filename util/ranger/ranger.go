@@ -138,7 +138,12 @@ func points2Ranges(sctx sessionctx.Context, rangePoints []*point, tp *types.Fiel
 		return fullRange, true, nil
 	}
 	// ranges := make(Ranges, 0, len(convertedPoints)/2)
-	ranges := sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(convertedPoints) / 2)
+	var ranges []*Range
+	if sctx.GetSessionVars().GetUtilRangeSlice() != nil {
+		ranges = sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(convertedPoints) / 2)
+	} else {
+		ranges = make(Ranges, 0, len(convertedPoints)/2)
+	}
 	for i := 0; i < len(convertedPoints); i += 2 {
 		startPoint, endPoint := convertedPoints[i], convertedPoints[i+1]
 		var ran *Range
