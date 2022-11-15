@@ -324,7 +324,13 @@ func appendPoints2Ranges(sctx sessionctx.Context, origin Ranges, rangePoints []*
 
 func appendPoints2IndexRange(sctx sessionctx.Context, origin *Range, rangePoints []*point, ft *types.FieldType) (Ranges, error) {
 	//newRanges := make(Ranges, 0, len(rangePoints)/2)
-	newRanges := sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(rangePoints) / 2)
+	var newRanges []*Range
+	if sctx.GetSessionVars().GetUtilRangeSlice() != nil {
+		newRanges = sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(rangePoints) / 2)
+	} else {
+		newRanges = make(Ranges, 0, len(rangePoints)/2)
+	}
+
 	for i := 0; i < len(rangePoints); i += 2 {
 		startPoint, endPoint := rangePoints[i], rangePoints[i+1]
 
