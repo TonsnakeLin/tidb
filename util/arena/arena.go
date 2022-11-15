@@ -229,6 +229,7 @@ func (sa *SliceAlloctor) InitSliceAlloctor() {
 	sa.FieldNameSlice = &types.FieldNameSliceAllocator{}
 	sa.ModelColumnInfo = &model.ModelColumnInfoSliceAllocator{}
 	sa.IntSlice = &IntSliceAllocator{}
+	sa.ByteSlice = &ByteSliceAllocator{}
 	sa.DatumSlice.InitDatumSlice()
 	sa.FieldTypeSlice.InitFieldTypeSlice()
 	sa.FieldNameSlice.InitFieldNameSlice()
