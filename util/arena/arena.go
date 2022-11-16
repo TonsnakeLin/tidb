@@ -287,6 +287,7 @@ func (mps *MemPoolSet) GetByteSliceByLen(len int) []byte {
 
 // ObjectorAllocator is a .
 type ObjectorAllocator struct {
+	mutex    sync.Mutex
 	arena    []byte
 	offset   int
 	capacity int
@@ -304,6 +305,8 @@ func (objAlloc *ObjectorAllocator) Reset() {
 }
 
 func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
+	objAlloc.mutex.Lock()
+	defer objAlloc.mutex.Unlock()
 	if objAlloc.offset+len > objAlloc.capacity {
 		return nil
 	}
