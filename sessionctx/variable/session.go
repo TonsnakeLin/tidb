@@ -1308,126 +1308,18 @@ type SessionVars struct {
 	// like select @@last_sql_use_alloc
 	preUseChunkAlloc bool
 
-	MemPoolSet struct {
-		mutex          sync.Mutex
-		ObjAllocator   *arena.ObjectorAllocator
-		SliceAllocator *arena.SliceAlloctor
-		MapAlloctor    *arena.MapAllocator
-	}
+	MixedMemPool *arena.MemPoolSet
 }
 
-func (s *SessionVars) ResetMemPoolSet() {
-	s.MemPoolSet.ObjAllocator.Reset()
-	s.MemPoolSet.SliceAllocator.Reset()
-	s.MemPoolSet.MapAlloctor.Reset()
-}
-
-func (s *SessionVars) InitMemPoolSet() {
-	objAllocator := &arena.ObjectorAllocator{}
-	objAllocator.Init()
-
-	sliceAllocator := &arena.SliceAlloctor{}
-	sliceAllocator.InitSliceAlloctor()
-	// sliceAllocator.DatumSlice = &types.DatumSliceAllocator{}
-	// sliceAllocator.DatumSlice.InitDatumSlice()
-
-	mapAllocator := &arena.MapAllocator{}
-	mapAllocator.InitMapAllocator()
-
-	s.MemPoolSet.ObjAllocator = objAllocator
-	s.MemPoolSet.SliceAllocator = sliceAllocator
-	s.MemPoolSet.MapAlloctor = mapAllocator
-}
-
-func (s *SessionVars) GetIsolationReadEnginesMap() map[kv.StoreType]struct{} {
-	return s.MemPoolSet.MapAlloctor.GetIsolationReadEnginesMap()
-}
-
-func (s *SessionVars) GetTableStatsMap() map[int64]interface{} {
-	return s.MemPoolSet.MapAlloctor.GetTableStatsMap()
-}
-
-func (s *SessionVars) GetLockTableIDs() map[int64]struct{} {
-	return s.MemPoolSet.MapAlloctor.GetLockTableIDs()
-}
-
-func (s *SessionVars) GetStatsLoadStatusMap() map[model.TableItemID]string {
-	return s.MemPoolSet.MapAlloctor.GetStatsLoadStatusMap()
-}
-
-func (s *SessionVars) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
-	return s.MemPoolSet.MapAlloctor.GetTblInfo2UnionScanMap()
+func (s *SessionVars) SetMixedMemPool(poolSet *arena.MemPoolSet) {
+	s.MixedMemPool = poolSet
 }
 
 func (s *SessionVars) GetObjectPointer(len int, useCache bool) unsafe.Pointer {
-	if !useCache {
+	if s.MixedMemPool == nil {
 		return nil
 	}
-	return s.MemPoolSet.ObjAllocator.GetObjectPointer(len)
-}
-
-func (s *SessionVars) GetExprSlice() any {
-	return s.MemPoolSet.SliceAllocator.ExprSlice
-}
-
-func (s *SessionVars) GetExprCloumnSlice() any {
-	return s.MemPoolSet.SliceAllocator.ExprColumnSlice
-}
-
-func (s *SessionVars) GetUtilRangeSlice() any {
-	return s.MemPoolSet.SliceAllocator.UtilRangeSlice
-}
-
-func (s *SessionVars) GetVisitInfoSlice() any {
-	return s.MemPoolSet.SliceAllocator.VisitInfoSlice
-}
-
-func (s *SessionVars) GetDatumSliceByCap(cap int) []types.Datum {
-	return s.MemPoolSet.SliceAllocator.DatumSlice.GetDatumSliceByCap(cap)
-}
-
-func (s *SessionVars) GetDatumSliceByLen(len int) []types.Datum {
-	return s.MemPoolSet.SliceAllocator.DatumSlice.GetDatumSliceByLen(len)
-}
-
-func (s *SessionVars) GetFldTypeSliceByCap(cap int) []*types.FieldType {
-	return s.MemPoolSet.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByCap(cap)
-}
-
-func (s *SessionVars) GetFldTypeSliceByLen(len int) []*types.FieldType {
-	return s.MemPoolSet.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByLen(len)
-}
-
-func (s *SessionVars) GetFldNameSliceByCap(cap int) []*types.FieldName {
-	return s.MemPoolSet.SliceAllocator.FieldNameSlice.GetFldNameSliceByCap(cap)
-}
-
-func (s *SessionVars) GetFldNameSliceByLen(len int) []*types.FieldName {
-	return s.MemPoolSet.SliceAllocator.FieldNameSlice.GetFldNameSliceByLen(len)
-}
-
-func (s *SessionVars) GetModelColumnInfoSliceByCap(cap int) []*model.ColumnInfo {
-	return s.MemPoolSet.SliceAllocator.ModelColumnInfo.GetColumnInfoSliceByCap(cap)
-}
-
-func (s *SessionVars) GetModelColumnInfoSliceByLen(len int) []*model.ColumnInfo {
-	return s.MemPoolSet.SliceAllocator.ModelColumnInfo.GetColumnInfoSliceByLen(len)
-}
-
-func (s *SessionVars) GetIntSliceByCap(cap int) []int {
-	return s.MemPoolSet.SliceAllocator.IntSlice.GetIntSliceByCap(cap)
-}
-
-func (s *SessionVars) GetIntSliceByLen(len int) []int {
-	return s.MemPoolSet.SliceAllocator.IntSlice.GetIntSliceByLen(len)
-}
-
-func (s *SessionVars) GetByteSliceByCap(cap int) []byte {
-	return s.MemPoolSet.SliceAllocator.ByteSlice.GetByteSliceByCap(cap)
-}
-
-func (s *SessionVars) GetByteSliceByLen(len int) []byte {
-	return s.MemPoolSet.SliceAllocator.ByteSlice.GetByteSliceByCap(len)
+	return s.MixedMemPool.GetObjectPointer(len, useCache)
 }
 
 // GetNewChunkWithCapacity Attempt to request memory from the chunk pool
@@ -1830,7 +1722,6 @@ func NewSessionVars(hctx HookContext) *SessionVars {
 		vars.TxnScope = kv.NewGlobalTxnScopeVar()
 	}
 	vars.systems[CharacterSetConnection], vars.systems[CollationConnection] = charset.GetDefaultCharsetAndCollate()
-	vars.InitMemPoolSet()
 	return vars
 }
 

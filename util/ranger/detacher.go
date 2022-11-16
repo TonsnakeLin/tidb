@@ -567,7 +567,6 @@ func ExtractEqAndInCondition(sctx sessionctx.Context, conditions []expression.Ex
 	lengths []int) ([]expression.Expression, []expression.Expression, []expression.Expression, []*valueInfo, bool) {
 	var filters []expression.Expression
 	rb := builder{sc: sctx.GetSessionVars().StmtCtx, sctx: sctx}
-	sessionVars := sctx.GetSessionVars()
 	accesses := make([]expression.Expression, len(cols))
 	/*
 		var accesses, mergedAccesses, newConditions []expression.Expression
@@ -585,8 +584,7 @@ func ExtractEqAndInCondition(sctx sessionctx.Context, conditions []expression.Ex
 	mergedAccesses := make([]expression.Expression, len(cols))
 	newConditions := make([]expression.Expression, 0, len(conditions))
 	columnValues := make([]*valueInfo, len(cols))
-	// offsets := make([]int, len(conditions))
-	offsets := sessionVars.GetIntSliceByLen(len(conditions))
+	offsets := make([]int, len(conditions))
 	for i, cond := range conditions {
 		offset := getPotentialEqOrInColOffset(sctx, cond, cols)
 		offsets[i] = offset
@@ -884,10 +882,10 @@ func (d *rangeDetacher) detachCondAndBuildRangeForCols() (*DetachRangeResult, er
 	} else {
 		res = &DetachRangeResult{}
 	}
-	// newTpSlice := make([]*types.FieldType, 0, len(d.cols))
-	newTpSlice := d.sctx.GetSessionVars().GetFldTypeSliceByCap(len(d.cols))
+	newTpSlice := make([]*types.FieldType, 0, len(d.cols))
+	// newTpSlice := d.sctx.GetSessionVars().GetFldTypeSliceByCap(len(d.cols))
 	for _, col := range d.cols {
-		newTpSlice = append(newTpSlice, newFieldTypeUsingCache(d.sctx, col.RetType))
+		newTpSlice = append(newTpSlice, newFieldType(col.RetType))
 	}
 	if len(d.allConds) == 1 {
 		if sf, ok := d.allConds[0].(*expression.ScalarFunction); ok && sf.FuncName.L == ast.LogicOr {

@@ -121,10 +121,9 @@ func TryAddExtraLimit(ctx sessionctx.Context, node ast.StmtNode) ast.StmtNode {
 // preprocessReturn used to extract the infoschema for the tableName and the timestamp from the asof clause.
 func Preprocess(ctx context.Context, sctx sessionctx.Context, node ast.Node, preprocessOpt ...PreprocessOpt) error {
 	v := preprocessor{
-		sctx:             sctx,
-		tableAliasInJoin: sctx.GetSessionVars().MemPoolSet.SliceAllocator.TableAliasInJoin, //make([]map[string]interface{}, 0),
-		preprocessWith: &preprocessWith{cteCanUsed: sctx.GetSessionVars().MemPoolSet.SliceAllocator.CteCanUsed,
-			cteBeforeOffset: sctx.GetSessionVars().MemPoolSet.SliceAllocator.CteBeforeOffset},
+		sctx:               sctx,
+		tableAliasInJoin:   make([]map[string]interface{}, 0),
+		preprocessWith:     &preprocessWith{cteCanUsed: make([]string, 0), cteBeforeOffset: make([]int, 0)},
 		staleReadProcessor: staleread.NewStaleReadProcessor(ctx, sctx),
 	}
 	for _, optFn := range preprocessOpt {

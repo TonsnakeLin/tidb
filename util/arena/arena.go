@@ -158,9 +158,131 @@ func (s *SimpleAllocator) Reset() {
 	s.off = 0
 }
 
-// MixedMemPool is used allocate different type objects and slices by allocated memory.
-type MixedMemPool struct {
-	objAllocator ObjectorAllocator
+type MemPoolSet struct {
+	mutex          sync.Mutex
+	ObjAllocator   *ObjectorAllocator
+	SliceAllocator *SliceAlloctor
+	MapAlloctor    *MapAllocator
+}
+
+func (mps *MemPoolSet) ResetMemPoolSet() {
+	mps.ObjAllocator.Reset()
+	mps.SliceAllocator.Reset()
+	mps.MapAlloctor.Reset()
+}
+
+func NewMemPoolSet() *MemPoolSet {
+	objAllocator := &ObjectorAllocator{}
+	objAllocator.Init()
+
+	sliceAllocator := &SliceAlloctor{}
+	sliceAllocator.InitSliceAlloctor()
+
+	mapAllocator := &MapAllocator{}
+	mapAllocator.InitMapAllocator()
+
+	return &MemPoolSet{
+		ObjAllocator:   objAllocator,
+		SliceAllocator: sliceAllocator,
+		MapAlloctor:    mapAllocator,
+	}
+}
+
+// map interface
+// map interface
+func (mps *MemPoolSet) GetIsolationReadEnginesMap() map[kv.StoreType]struct{} {
+	return mps.MapAlloctor.GetIsolationReadEnginesMap()
+}
+
+func (mps *MemPoolSet) GetTableStatsMap() map[int64]interface{} {
+	return mps.MapAlloctor.GetTableStatsMap()
+}
+
+func (mps *MemPoolSet) GetLockTableIDsMap() map[int64]struct{} {
+	return mps.MapAlloctor.GetLockTableIDs()
+}
+
+func (mps *MemPoolSet) GetStatsLoadStatusMap() map[model.TableItemID]string {
+	return mps.MapAlloctor.GetStatsLoadStatusMap()
+}
+
+func (mps *MemPoolSet) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
+	return mps.MapAlloctor.GetTblInfo2UnionScanMap()
+}
+
+// ObjAllocator interface
+// ObjAllocator interface
+func (mps *MemPoolSet) GetObjectPointer(len int, useCache bool) unsafe.Pointer {
+	if !useCache {
+		return nil
+	}
+	return mps.ObjAllocator.GetObjectPointer(len)
+}
+
+// Slices interfaces which have no type
+func (mps *MemPoolSet) GetExprSlice() any {
+	return mps.SliceAllocator.ExprSlice
+}
+
+func (mps *MemPoolSet) GetExprCloumnSlice() any {
+	return mps.SliceAllocator.ExprColumnSlice
+}
+
+func (mps *MemPoolSet) GetUtilRangeSlice() any {
+	return mps.SliceAllocator.UtilRangeSlice
+}
+
+func (mps *MemPoolSet) GetVisitInfoSlice() any {
+	return mps.SliceAllocator.VisitInfoSlice
+}
+
+// Slices interfaces which have definite type
+func (mps *MemPoolSet) GetDatumSliceByCap(cap int) []types.Datum {
+	return mps.SliceAllocator.DatumSlice.GetDatumSliceByCap(cap)
+}
+
+func (mps *MemPoolSet) GetDatumSliceByLen(len int) []types.Datum {
+	return mps.SliceAllocator.DatumSlice.GetDatumSliceByLen(len)
+}
+
+func (mps *MemPoolSet) GetFldTypeSliceByCap(cap int) []*types.FieldType {
+	return mps.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByCap(cap)
+}
+
+func (mps *MemPoolSet) GetFldTypeSliceByLen(len int) []*types.FieldType {
+	return mps.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByLen(len)
+}
+
+func (mps *MemPoolSet) GetFldNameSliceByCap(cap int) []*types.FieldName {
+	return mps.SliceAllocator.FieldNameSlice.GetFldNameSliceByCap(cap)
+}
+
+func (mps *MemPoolSet) GetFldNameSliceByLen(len int) []*types.FieldName {
+	return mps.SliceAllocator.FieldNameSlice.GetFldNameSliceByLen(len)
+}
+
+func (mps *MemPoolSet) GetModelColumnInfoSliceByCap(cap int) []*model.ColumnInfo {
+	return mps.SliceAllocator.ModelColumnInfo.GetColumnInfoSliceByCap(cap)
+}
+
+func (mps *MemPoolSet) GetModelColumnInfoSliceByLen(len int) []*model.ColumnInfo {
+	return mps.SliceAllocator.ModelColumnInfo.GetColumnInfoSliceByLen(len)
+}
+
+func (mps *MemPoolSet) GetIntSliceByCap(cap int) []int {
+	return mps.SliceAllocator.IntSlice.GetIntSliceByCap(cap)
+}
+
+func (mps *MemPoolSet) GetIntSliceByLen(len int) []int {
+	return mps.SliceAllocator.IntSlice.GetIntSliceByLen(len)
+}
+
+func (mps *MemPoolSet) GetByteSliceByCap(cap int) []byte {
+	return mps.SliceAllocator.ByteSlice.GetByteSliceByCap(cap)
+}
+
+func (mps *MemPoolSet) GetByteSliceByLen(len int) []byte {
+	return mps.SliceAllocator.ByteSlice.GetByteSliceByCap(len)
 }
 
 // ObjectorAllocator is a .

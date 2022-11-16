@@ -172,6 +172,7 @@ func newClientConn(s *Server) *clientConn {
 		collation:    mysql.DefaultCollationID,
 		alloc:        arena.NewAllocator(32 * 1024),
 		chunkAlloc:   chunk.NewAllocator(),
+		memPoolSet:   arena.NewMemPoolSet(),
 		status:       connStatusDispatching,
 		lastActive:   time.Now(),
 		authPlugin:   mysql.AuthNativePassword,
@@ -192,6 +193,7 @@ type clientConn struct {
 	salt         []byte            // random bytes used for authentication.
 	alloc        arena.Allocator   // an memory allocator for reducing memory allocation.
 	chunkAlloc   chunk.Allocator
+	memPoolSet   *arena.MemPoolSet
 	lastPacket   []byte // latest sql query string, currently used for logging error.
 	// ShowProcess() and mysql.ComChangeUser both visit this field, ShowProcess() read information through
 	// the TiDBContext and mysql.ComChangeUser re-create it, so a lock is required here.
@@ -1069,27 +1071,27 @@ func (cc *clientConn) Run(ctx context.Context) {
 		}
 	}()
 	sessVars := cc.ctx.GetSessionVars()
-	if sessVars.MemPoolSet.SliceAllocator.ExprSlice == nil {
+	if cc.memPoolSet.SliceAllocator.ExprSlice == nil {
 		es := &expression.ExpressionSlice{}
 		es.InitExprSlice()
-		sessVars.MemPoolSet.SliceAllocator.ExprSlice = es
+		cc.memPoolSet.SliceAllocator.ExprSlice = es
 	}
-	if sessVars.MemPoolSet.SliceAllocator.ExprColumnSlice == nil {
+	if cc.memPoolSet.SliceAllocator.ExprColumnSlice == nil {
 		cs := &expression.ExprColumnSliceAllocator{}
 		cs.InitColumnSlice()
-		sessVars.MemPoolSet.SliceAllocator.ExprColumnSlice = cs
+		cc.memPoolSet.SliceAllocator.ExprColumnSlice = cs
 	}
-	if sessVars.MemPoolSet.SliceAllocator.UtilRangeSlice == nil {
+	if cc.memPoolSet.SliceAllocator.UtilRangeSlice == nil {
 		rs := &ranger.RangeSliceAllocator{}
 		rs.InitRangeSlice()
-		sessVars.MemPoolSet.SliceAllocator.UtilRangeSlice = rs
+		cc.memPoolSet.SliceAllocator.UtilRangeSlice = rs
 	}
-	if sessVars.MemPoolSet.SliceAllocator.VisitInfoSlice == nil {
+	if cc.memPoolSet.SliceAllocator.VisitInfoSlice == nil {
 		vs := &core.VisitInfoSliceAllocator{}
 		vs.InitVisitInfoSlice()
-		sessVars.MemPoolSet.SliceAllocator.VisitInfoSlice = vs
+		cc.memPoolSet.SliceAllocator.VisitInfoSlice = vs
 	}
-
+	sessVars.SetMixedMemPool(cc.memPoolSet)
 	// Usually, client connection status changes between [dispatching] <=> [reading].
 	// When some event happens, server may notify this client connection by setting
 	// the status to special values, for example: kill or graceful shutdown.
@@ -1104,11 +1106,11 @@ func (cc *clientConn) Run(ctx context.Context) {
 		}
 
 		cc.alloc.Reset()
-		sessVars.ResetMemPoolSet()
-		sessVars.MemPoolSet.SliceAllocator.ExprSlice.(*expression.ExpressionSlice).Reset()
-		sessVars.MemPoolSet.SliceAllocator.ExprColumnSlice.(*expression.ExprColumnSliceAllocator).Reset()
-		sessVars.MemPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSliceAllocator).Reset()
-		sessVars.MemPoolSet.SliceAllocator.VisitInfoSlice.(*core.VisitInfoSliceAllocator).Reset()
+		cc.memPoolSet.ResetMemPoolSet()
+		cc.memPoolSet.SliceAllocator.ExprSlice.(*expression.ExpressionSlice).Reset()
+		cc.memPoolSet.SliceAllocator.ExprColumnSlice.(*expression.ExprColumnSliceAllocator).Reset()
+		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSliceAllocator).Reset()
+		cc.memPoolSet.SliceAllocator.VisitInfoSlice.(*core.VisitInfoSliceAllocator).Reset()
 		// close connection when idle time is more than wait_timeout
 		waitTimeout := cc.getSessionVarsWaitTimeout(ctx)
 		cc.pkt.setReadTimeout(time.Duration(waitTimeout) * time.Second)

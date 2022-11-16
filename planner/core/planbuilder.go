@@ -885,8 +885,8 @@ func (b *PlanBuilder) buildExecute(ctx context.Context, v *ast.ExecuteStmt) (Pla
 	// vars := make([]expression.Expression, 0, len(v.UsingVars))
 	var vars []expression.Expression
 	sessVars := b.ctx.GetSessionVars()
-	if sessVars.GetExprSlice() != nil {
-		vars = sessVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByCap(len(v.UsingVars))
+	if sessVars.MixedMemPool != nil {
+		vars = sessVars.MixedMemPool.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByCap(len(v.UsingVars))
 	} else {
 		vars = make([]expression.Expression, 0, len(v.UsingVars))
 	}

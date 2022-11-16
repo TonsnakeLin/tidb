@@ -295,6 +295,17 @@ func NewPlanCacheKey(sessionVars *variable.SessionVars, stmtText, stmtDB string,
 		_, timezoneOffset = time.Now().In(sessionVars.TimeZone).Zone()
 	}
 	var key *planCacheKey
+	var hashValue []byte
+	var engineMap map[kv.StoreType]struct{}
+	if sessionVars.MixedMemPool != nil {
+		engineMap = sessionVars.MixedMemPool.GetIsolationReadEnginesMap()
+	} else {
+		engineMap = make(map[kv.StoreType]struct{})
+	}
+	if sessionVars.MixedMemPool != nil {
+		hashValue = sessionVars.MixedMemPool.GetByteSliceByCap(256)
+	}
+
 	ptr := sessionVars.GetObjectPointer(sizeOfPlanCacheKey, true)
 	if ptr != nil {
 		key = (*planCacheKey)(ptr)
@@ -307,13 +318,13 @@ func NewPlanCacheKey(sessionVars *variable.SessionVars, stmtText, stmtDB string,
 			sqlMode:                  sessionVars.SQLMode,
 			timezoneOffset:           timezoneOffset,
 			// isolationReadEngines:     make(map[kv.StoreType]struct{}),
-			isolationReadEngines: sessionVars.GetIsolationReadEnginesMap(),
+			isolationReadEngines: engineMap,
 			selectLimit:          sessionVars.SelectLimit,
 			bindSQL:              bindSQL,
 			inRestrictedSQL:      sessionVars.InRestrictedSQL,
 			restrictedReadOnly:   variable.RestrictedReadOnly.Load(),
 			TiDBSuperReadOnly:    variable.VarTiDBSuperReadOnly.Load(),
-			hash:                 sessionVars.GetByteSliceByCap(256),
+			hash:                 hashValue,
 		}
 	} else {
 		key = &planCacheKey{
@@ -325,7 +336,7 @@ func NewPlanCacheKey(sessionVars *variable.SessionVars, stmtText, stmtDB string,
 			sqlMode:                  sessionVars.SQLMode,
 			timezoneOffset:           timezoneOffset,
 			// isolationReadEngines:     make(map[kv.StoreType]struct{}),
-			isolationReadEngines: sessionVars.GetIsolationReadEnginesMap(),
+			isolationReadEngines: engineMap,
 			selectLimit:          sessionVars.SelectLimit,
 			bindSQL:              bindSQL,
 			inRestrictedSQL:      sessionVars.InRestrictedSQL,

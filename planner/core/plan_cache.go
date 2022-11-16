@@ -169,7 +169,9 @@ func GetPlanFromSessionPlanCache(ctx context.Context, sctx sessionctx.Context,
 func parseParamTypes(sctx sessionctx.Context, params []expression.Expression) (paramNum int, paramTypes []*types.FieldType) {
 	paramNum = len(params)
 	sessVars := sctx.GetSessionVars()
-	paramTypes = sessVars.GetFldTypeSliceByCap(paramNum)
+	if sessVars.MixedMemPool != nil {
+		paramTypes = sessVars.MixedMemPool.GetFldTypeSliceByCap(paramNum)
+	}
 	for _, param := range params {
 		if c, ok := param.(*expression.Constant); ok { // from binary protocol
 			paramTypes = append(paramTypes, c.GetType())

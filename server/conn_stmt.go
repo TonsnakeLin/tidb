@@ -178,8 +178,8 @@ func (cc *clientConn) handleStmtExecute(ctx context.Context, data []byte) (err e
 	numParams := stmt.NumParams()
 	// args := make([]expression.Expression, numParams)
 	var args []expression.Expression
-	if sessVars.GetExprSlice() != nil {
-		args = sessVars.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(numParams)
+	if sessVars.MixedMemPool != nil {
+		args = sessVars.MixedMemPool.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(numParams)
 	} else {
 		args = make([]expression.Expression, numParams)
 	}
@@ -396,8 +396,14 @@ func parseExecArgs(vars *variable.SessionVars, params []expression.Expression, b
 		enc = newInputDecoder(charset.CharsetUTF8)
 	}
 
+	var args []types.Datum
+	if vars.MixedMemPool != nil {
+		args = vars.MixedMemPool.GetDatumSliceByLen(len(params))
+	} else {
+		args = make([]types.Datum, len(params))
+	}
 	// args := make([]types.Datum, len(params))
-	args := vars.GetDatumSliceByLen(len(params))
+
 	for i := 0; i < len(args); i++ {
 		// if params had received via ComStmtSendLongData, use them directly.
 		// ref https://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html

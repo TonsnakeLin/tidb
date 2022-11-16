@@ -137,13 +137,15 @@ func points2Ranges(sctx sessionctx.Context, rangePoints []*point, tp *types.Fiel
 		}
 		return fullRange, true, nil
 	}
-	// ranges := make(Ranges, 0, len(convertedPoints)/2)
-	var ranges []*Range
-	if sctx.GetSessionVars().GetUtilRangeSlice() != nil {
-		ranges = sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(convertedPoints) / 2)
-	} else {
-		ranges = make(Ranges, 0, len(convertedPoints)/2)
-	}
+	ranges := make(Ranges, 0, len(convertedPoints)/2)
+	/*
+		var ranges []*Range
+		if sctx.GetSessionVars().GetUtilRangeSlice() != nil {
+			ranges = sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(convertedPoints) / 2)
+		} else {
+			ranges = make(Ranges, 0, len(convertedPoints)/2)
+		}
+	*/
 	for i := 0; i < len(convertedPoints); i += 2 {
 		startPoint, endPoint := convertedPoints[i], convertedPoints[i+1]
 		var ran *Range
@@ -323,24 +325,25 @@ func appendPoints2Ranges(sctx sessionctx.Context, origin Ranges, rangePoints []*
 }
 
 func appendPoints2IndexRange(sctx sessionctx.Context, origin *Range, rangePoints []*point, ft *types.FieldType) (Ranges, error) {
-	//newRanges := make(Ranges, 0, len(rangePoints)/2)
-	var newRanges []*Range
-	if sctx.GetSessionVars().GetUtilRangeSlice() != nil {
-		newRanges = sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(rangePoints) / 2)
-	} else {
-		newRanges = make(Ranges, 0, len(rangePoints)/2)
-	}
-
+	newRanges := make(Ranges, 0, len(rangePoints)/2)
+	/*
+		var newRanges []*Range
+		if sctx.GetSessionVars().GetUtilRangeSlice() != nil {
+			newRanges = sctx.GetSessionVars().GetUtilRangeSlice().(*RangeSliceAllocator).GetRangeSliceByCap(len(rangePoints) / 2)
+		} else {
+			newRanges = make(Ranges, 0, len(rangePoints)/2)
+		}
+	*/
 	for i := 0; i < len(rangePoints); i += 2 {
 		startPoint, endPoint := rangePoints[i], rangePoints[i+1]
 
-		// lowVal := make([]types.Datum, len(origin.LowVal)+1)
-		lowVal := sctx.GetSessionVars().GetDatumSliceByLen(len(origin.LowVal) + 1)
+		lowVal := make([]types.Datum, len(origin.LowVal)+1)
+		// lowVal := sctx.GetSessionVars().GetDatumSliceByLen(len(origin.LowVal) + 1)
 		copy(lowVal, origin.LowVal)
 		lowVal[len(origin.LowVal)] = startPoint.value
 
-		// highVal := make([]types.Datum, len(origin.HighVal)+1)
-		highVal := sctx.GetSessionVars().GetDatumSliceByLen(len(origin.HighVal) + 1)
+		highVal := make([]types.Datum, len(origin.HighVal)+1)
+		// highVal := sctx.GetSessionVars().GetDatumSliceByLen(len(origin.HighVal) + 1)
 		copy(highVal, origin.HighVal)
 		highVal[len(origin.HighVal)] = endPoint.value
 
