@@ -16,6 +16,8 @@ package arena
 
 import (
 	"reflect"
+	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/pingcap/tidb/kv"
@@ -242,6 +244,34 @@ func (sa *SliceAlloctor) InitSliceAlloctor() {
 	sa.CteBeforeOffset = make([]int, 0)
 }
 
+type StringToDurationMaps struct {
+	mutex    sync.Mutex
+	maps     []map[string]time.Duration
+	offset   int
+	capacity int
+}
+
+func (m *StringToDurationMaps) Init() {
+	m.maps = make([]map[string]time.Duration, 10)
+	m.offset = 0
+	m.capacity = 10
+
+	for i := 0; i < 10; i++ {
+		m.maps[i] = make(map[string]time.Duration)
+	}
+}
+
+func (m *StringToDurationMaps) GetOneMap() map[string]time.Duration {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.offset >= m.capacity {
+		return make(map[string]time.Duration)
+	}
+	src := m.offset
+	m.offset++
+	return m.maps[src]
+}
+
 type MapAllocator struct {
 	// StmtCtxsmall maps
 	StatsLoadStatus      map[model.TableItemID]string
@@ -249,6 +279,8 @@ type MapAllocator struct {
 	TblInfo2UnionScan    map[*model.TableInfo]bool
 	TableStats           map[int64]interface{}
 	isolationReadEngines map[kv.StoreType]struct{}
+
+	strToDurationMaps *StringToDurationMaps
 }
 
 func (ma *MapAllocator) InitMapAllocator() {

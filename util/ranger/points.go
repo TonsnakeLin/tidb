@@ -340,8 +340,8 @@ func (r *builder) buildFromBinOp(expr *expression.ScalarFunction) []*point {
 	if ft.GetType() == mysql.TypeEnum && ft.EvalType() == types.ETString {
 		return handleEnumFromBinOp(r.sc, ft, value, op)
 	}
-	ptr1 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, true)
-	ptr2 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, true)
+	ptr1 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, false)
+	ptr2 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, false)
 	switch op {
 	case ast.NullEQ:
 		if value.IsNull() {

@@ -147,7 +147,7 @@ func points2Ranges(sctx sessionctx.Context, rangePoints []*point, tp *types.Fiel
 	for i := 0; i < len(convertedPoints); i += 2 {
 		startPoint, endPoint := convertedPoints[i], convertedPoints[i+1]
 		var ran *Range
-		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange, true)
+		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange, false)
 		if ptr != nil {
 			ran = (*Range)(ptr)
 			*ran = Range{
@@ -220,7 +220,7 @@ func convertPoint(sctx sessionctx.Context, ipoint *point, tp *types.FieldType) (
 		return ipoint, errors.Trace(err)
 	}
 	var npoint *point
-	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, true)
+	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, false)
 	// npoint := point.Clone(casted)
 	if ptr != nil {
 		npoint = (*point)(ptr)
@@ -348,7 +348,7 @@ func appendPoints2IndexRange(sctx sessionctx.Context, origin *Range, rangePoints
 		copy(collators, origin.Collators)
 		collators[len(origin.Collators)] = collate.GetCollator(ft.GetCollate())
 		var ir *Range
-		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange, true)
+		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange, false)
 		if ptr != nil {
 			ir = (*Range)(ptr)
 			*ir = Range{
@@ -776,7 +776,7 @@ func newFieldTypeUsingCache(sctx sessionctx.Context, tp *types.FieldType) *types
 	// To avoid overflow error.
 	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeInt24, mysql.TypeLong, mysql.TypeLonglong:
 		var fdBuild *types.FieldTypeBuilder
-		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder, true)
+		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder, false)
 		if ptr != nil {
 			fdBuild = (*types.FieldTypeBuilder)(ptr)
 			*fdBuild = types.FieldTypeBuilder{}
@@ -791,7 +791,7 @@ func newFieldTypeUsingCache(sctx sessionctx.Context, tp *types.FieldType) *types
 	case mysql.TypeFloat, mysql.TypeDouble, mysql.TypeBlob, mysql.TypeTinyBlob, mysql.TypeMediumBlob, mysql.TypeLongBlob,
 		mysql.TypeString, mysql.TypeVarchar, mysql.TypeVarString:
 		var fdBuild *types.FieldTypeBuilder
-		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder, true)
+		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder, false)
 		if ptr != nil {
 			fdBuild = (*types.FieldTypeBuilder)(ptr)
 			*fdBuild = types.FieldTypeBuilder{}
