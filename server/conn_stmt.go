@@ -272,7 +272,7 @@ func (cc *clientConn) executePreparedStmtAndWriteResult(ctx context.Context, stm
 		}
 	*/
 	var execStmt *ast.ExecuteStmt
-	ptr := (&cc.ctx).GetSessionVars().GetObjectPointer(sizeOfExecuteStmt)
+	ptr := (&cc.ctx).GetSessionVars().GetObjectPointer(sizeOfExecuteStmt, true)
 	if ptr != nil {
 		execStmt = (*ast.ExecuteStmt)(ptr)
 		*execStmt = ast.ExecuteStmt{
@@ -285,8 +285,6 @@ func (cc *clientConn) executePreparedStmtAndWriteResult(ctx context.Context, stm
 			PrepStmt:   prepStmt,
 		}
 	}
-	execStmt.BinaryArgs = args
-	execStmt.PrepStmt = prepStmt
 	rs, err := (&cc.ctx).ExecuteStmt(ctx, execStmt)
 	if err != nil {
 		return true, errors.Annotate(err, cc.preparedStmt2String(uint32(stmt.ID())))

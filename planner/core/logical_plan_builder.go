@@ -4544,14 +4544,18 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 	}
 	var ds *DataSource
 	var tblCols []*expression.Column
-	modelColumns := sessionVars.GetModelColumnInfoSliceByCap(len(columns))
-	if sessionVars.GetExprCloumnSlice() != nil {
-		tblCols = sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
-	} else {
-		tblCols = make([]*expression.Column, 0, len(columns))
-	}
+	// modelColumns := sessionVars.GetModelColumnInfoSliceByCap(len(columns))
+	modelColumns := make([]*model.ColumnInfo, 0, len(columns))
+	tblCols = make([]*expression.Column, 0, len(columns))
+	/*
+		if sessionVars.GetExprCloumnSlice() != nil {
+			tblCols = sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+		} else {
+			tblCols = make([]*expression.Column, 0, len(columns))
+		}
+	*/
 
-	ptr := sessionVars.GetObjectPointer(SizeOfDataSource)
+	ptr := sessionVars.GetObjectPointer(SizeOfDataSource, false)
 	if ptr != nil {
 		ds = (*DataSource)(ptr)
 		*ds = DataSource{
@@ -4593,19 +4597,22 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 	ds.Init(b.ctx, b.getSelectOffset())
 	var handleCols HandleCols
 	var exprColumns []*expression.Column
-	if sessionVars.GetExprCloumnSlice() != nil {
-		exprColumns = sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
-	} else {
-		exprColumns = make([]*expression.Column, 0, len(columns))
-	}
+	exprColumns = make([]*expression.Column, 0, len(columns))
+	/*
+		if sessionVars.GetExprCloumnSlice() != nil {
+			exprColumns = sessionVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).GetColumnSliceByCap(len(columns))
+		} else {
+			exprColumns = make([]*expression.Column, 0, len(columns))
+		}
+	*/
 
 	schema := expression.NewSchema(exprColumns...)
-	// names := make([]*types.FieldName, 0, len(columns))
-	names := sessionVars.GetFldNameSliceByCap(len(columns))
+	names := make([]*types.FieldName, 0, len(columns))
+	// names := sessionVars.GetFldNameSliceByCap(len(columns))
 	for i, col := range columns {
 		ds.Columns = append(ds.Columns, col.ToInfo())
 		var fldNames *types.FieldName
-		ptr := sessionVars.GetObjectPointer(types.SizeOfFieldName)
+		ptr := sessionVars.GetObjectPointer(types.SizeOfFieldName, false)
 		if ptr != nil {
 			fldNames = (*types.FieldName)(ptr)
 			*fldNames = types.FieldName{
@@ -4630,7 +4637,7 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 		}
 		names = append(names, fldNames)
 		var newCol *expression.Column
-		ptr = sessionVars.GetObjectPointer(types.SizeOfFieldName)
+		ptr = sessionVars.GetObjectPointer(types.SizeOfFieldName, false)
 		if ptr != nil {
 			newCol = (*expression.Column)(ptr)
 			*newCol = expression.Column{

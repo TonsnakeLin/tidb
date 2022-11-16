@@ -152,7 +152,7 @@ type staleReadProcessor struct {
 // NewStaleReadProcessor creates a new stale read processor
 func NewStaleReadProcessor(ctx context.Context, sctx sessionctx.Context) Processor {
 	var p *staleReadProcessor
-	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfStaleReadProcessor)
+	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfStaleReadProcessor, true)
 	if ptr != nil {
 		p = (*staleReadProcessor)(ptr)
 		*p = staleReadProcessor{}

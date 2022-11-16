@@ -277,7 +277,7 @@ func (d *rangeDetacher) detachCNFCondAndBuildRangeForIndex(conditions []expressi
 	)
 
 	var res *DetachRangeResult
-	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult)
+	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult, true)
 	if ptr != nil {
 		res = (*DetachRangeResult)(ptr)
 		*res = DetachRangeResult{}
@@ -875,7 +875,7 @@ type rangeDetacher struct {
 
 func (d *rangeDetacher) detachCondAndBuildRangeForCols() (*DetachRangeResult, error) {
 	var res *DetachRangeResult
-	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult)
+	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult, true)
 	if ptr != nil {
 		res = (*DetachRangeResult)(ptr)
 		*res = DetachRangeResult{}

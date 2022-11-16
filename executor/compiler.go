@@ -131,7 +131,7 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (_ *ExecS
 	}
 	stmtCtx.SetPlan(finalPlan)
 	var stmt *ExecStmt
-	ptr := sessVars.GetObjectPointer(sizeOfExecStmt)
+	ptr := sessVars.GetObjectPointer(sizeOfExecStmt, true)
 	if ptr != nil {
 		stmt = (*ExecStmt)(ptr)
 		*stmt = ExecStmt{

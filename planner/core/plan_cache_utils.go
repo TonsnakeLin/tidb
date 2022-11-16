@@ -295,7 +295,7 @@ func NewPlanCacheKey(sessionVars *variable.SessionVars, stmtText, stmtDB string,
 		_, timezoneOffset = time.Now().In(sessionVars.TimeZone).Zone()
 	}
 	var key *planCacheKey
-	ptr := sessionVars.GetObjectPointer(sizeOfPlanCacheKey)
+	ptr := sessionVars.GetObjectPointer(sizeOfPlanCacheKey, true)
 	if ptr != nil {
 		key = (*planCacheKey)(ptr)
 		*key = planCacheKey{

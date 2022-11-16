@@ -1201,7 +1201,7 @@ func partitionNameInSet(name model.CIStr, pnames []model.CIStr) bool {
 
 func newPointGetPlan(ctx sessionctx.Context, dbName string, schema *expression.Schema, tbl *model.TableInfo, names []*types.FieldName) *PointGetPlan {
 	var p *PointGetPlan
-	ptr := ctx.GetSessionVars().GetObjectPointer(sizeOfPointGetPlan)
+	ptr := ctx.GetSessionVars().GetObjectPointer(sizeOfPointGetPlan, false)
 	if ptr != nil {
 		p = (*PointGetPlan)(ptr)
 		*p = PointGetPlan{
@@ -1260,17 +1260,17 @@ func buildSchemaFromFields(
 	[]*types.FieldName,
 ) {
 	sessVars := ctx.GetSessionVars()
-	var columns []*expression.Column
-	// columns := make([]*expression.Column, 0, len(tbl.Columns)+1)
-	if sessVars.GetExprCloumnSlice() != nil {
-		columns = sessVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).
-			GetColumnSliceByCap(len(tbl.Columns) + 1)
-	} else {
-		columns = make([]*expression.Column, 0, len(tbl.Columns)+1)
-	}
-
-	// names := make([]*types.FieldName, 0, len(tbl.Columns)+1)
-	names := sessVars.GetFldNameSliceByCap(len(tbl.Columns) + 1)
+	columns := make([]*expression.Column, 0, len(tbl.Columns)+1)
+	/*
+		if sessVars.GetExprCloumnSlice() != nil {
+			columns = sessVars.GetExprCloumnSlice().(*expression.ExprColumnSliceAllocator).
+				GetColumnSliceByCap(len(tbl.Columns) + 1)
+		} else {
+			columns = make([]*expression.Column, 0, len(tbl.Columns)+1)
+		}
+	*/
+	names := make([]*types.FieldName, 0, len(tbl.Columns)+1)
+	// names := sessVars.GetFldNameSliceByCap(len(tbl.Columns) + 1)
 	if len(fields) > 0 {
 		for _, field := range fields {
 			if field.WildCard != nil {
@@ -1317,7 +1317,7 @@ func buildSchemaFromFields(
 	// fields len is 0 for update and delete.
 	for _, col := range tbl.Columns {
 		var fldName *types.FieldName
-		ptr := sessVars.GetObjectPointer(types.SizeOfFieldName)
+		ptr := sessVars.GetObjectPointer(types.SizeOfFieldName, false)
 		if ptr != nil {
 			fldName = (*types.FieldName)(ptr)
 			*fldName = types.FieldName{
@@ -1761,7 +1761,7 @@ func colInfoToColumn(ctx sessionctx.Context, col *model.ColumnInfo, idx int) *ex
 		}
 	}
 
-	ptr := ctx.GetSessionVars().GetObjectPointer(expression.SizeOfExprColumn)
+	ptr := ctx.GetSessionVars().GetObjectPointer(expression.SizeOfExprColumn, false)
 	if ptr == nil {
 		return &expression.Column{
 			RetType:  col.FieldType.Clone(),

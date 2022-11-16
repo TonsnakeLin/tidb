@@ -1359,7 +1359,10 @@ func (s *SessionVars) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
 	return s.MemPoolSet.MapAlloctor.GetTblInfo2UnionScanMap()
 }
 
-func (s *SessionVars) GetObjectPointer(len int) unsafe.Pointer {
+func (s *SessionVars) GetObjectPointer(len int, useCache bool) unsafe.Pointer {
+	if !useCache {
+		return nil
+	}
 	return s.MemPoolSet.ObjAllocator.GetObjectPointer(len)
 }
 
