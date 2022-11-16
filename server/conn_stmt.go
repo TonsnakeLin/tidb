@@ -179,7 +179,7 @@ func (cc *clientConn) handleStmtExecute(ctx context.Context, data []byte) (err e
 	// args := make([]expression.Expression, numParams)
 	var args []expression.Expression
 	if sessVars.MixedMemPool != nil {
-		args = sessVars.MixedMemPool.GetExprSlice().(*expression.ExpressionSlice).GetExprSliceByLen(numParams)
+		args = sessVars.MixedMemPool.GetExprSlices().(*expression.ExpressionSlicePool).GetExprSliceByLen(numParams)
 	} else {
 		args = make([]expression.Expression, numParams)
 	}

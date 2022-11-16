@@ -220,12 +220,12 @@ func (mps *MemPoolSet) GetObjectPointer(len int, useCache bool) unsafe.Pointer {
 }
 
 // Slices interfaces which have no type
-func (mps *MemPoolSet) GetExprSlice() any {
-	return mps.SliceAllocator.ExprSlice
+func (mps *MemPoolSet) GetExprSlices() any {
+	return mps.SliceAllocator.ExprSlices
 }
 
 func (mps *MemPoolSet) GetExprCloumnSlice() any {
-	return mps.SliceAllocator.ExprColumnSlice
+	return mps.SliceAllocator.ExprColSlices
 }
 
 func (mps *MemPoolSet) GetUtilRangeSlice() any {
@@ -322,8 +322,8 @@ func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
 }
 
 type SliceAlloctor struct {
-	ExprSlice       any
-	ExprColumnSlice any
+	ExprSlices      any
+	ExprColSlices   any
 	UtilRangeSlice  any
 	VisitInfoSlice  any
 	IntSlice        *IntSliceAllocator

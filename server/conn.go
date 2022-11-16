@@ -1071,19 +1071,19 @@ func (cc *clientConn) Run(ctx context.Context) {
 		}
 	}()
 	sessVars := cc.ctx.GetSessionVars()
-	if cc.memPoolSet.SliceAllocator.ExprSlice == nil {
-		es := &expression.ExpressionSlice{}
-		es.InitExprSlice()
-		cc.memPoolSet.SliceAllocator.ExprSlice = es
+	if cc.memPoolSet.SliceAllocator.ExprSlices == nil {
+		esp := &expression.ExpressionSlicePool{}
+		esp.Init()
+		cc.memPoolSet.SliceAllocator.ExprSlices = esp
 	}
-	if cc.memPoolSet.SliceAllocator.ExprColumnSlice == nil {
-		cs := &expression.ExprColumnSliceAllocator{}
-		cs.InitColumnSlice()
-		cc.memPoolSet.SliceAllocator.ExprColumnSlice = cs
+	if cc.memPoolSet.SliceAllocator.ExprColSlices == nil {
+		csp := &expression.ExprColumnSlicePool{}
+		csp.Init()
+		cc.memPoolSet.SliceAllocator.ExprColSlices = csp
 	}
 	if cc.memPoolSet.SliceAllocator.UtilRangeSlice == nil {
-		rs := &ranger.RangeSliceAllocator{}
-		rs.InitRangeSlice()
+		rs := &ranger.RangeSlicePool{}
+		rs.Init()
 		cc.memPoolSet.SliceAllocator.UtilRangeSlice = rs
 	}
 	if cc.memPoolSet.SliceAllocator.VisitInfoSlice == nil {
@@ -1107,9 +1107,9 @@ func (cc *clientConn) Run(ctx context.Context) {
 
 		cc.alloc.Reset()
 		cc.memPoolSet.ResetMemPoolSet()
-		cc.memPoolSet.SliceAllocator.ExprSlice.(*expression.ExpressionSlice).Reset()
-		cc.memPoolSet.SliceAllocator.ExprColumnSlice.(*expression.ExprColumnSliceAllocator).Reset()
-		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSliceAllocator).Reset()
+		cc.memPoolSet.SliceAllocator.ExprSlices.(*expression.ExpressionSlicePool).Reset()
+		cc.memPoolSet.SliceAllocator.ExprColSlices.(*expression.ExprColumnSlicePool).Reset()
+		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSlicePool).Reset()
 		cc.memPoolSet.SliceAllocator.VisitInfoSlice.(*core.VisitInfoSliceAllocator).Reset()
 		// close connection when idle time is more than wait_timeout
 		waitTimeout := cc.getSessionVarsWaitTimeout(ctx)

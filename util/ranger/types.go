@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/pingcap/errors"
@@ -29,40 +30,89 @@ import (
 	"github.com/pingcap/tidb/util/collate"
 )
 
-const sizeOfRange = int(unsafe.Sizeof(Range{}))
+const (
+	sizeOfRange      = int(unsafe.Sizeof(Range{}))
+	sliceNum         = 16
+	rangeNumPerSlice = 16
+)
 
-type RangeSliceAllocator struct {
+type RangeSlicePool struct {
+	mutex  sync.Mutex
+	ranges [sliceNum]*rangeSlice
+}
+
+func (p *RangeSlicePool) Init() {
+	for i := 0; i < sliceNum; i++ {
+		rs := &rangeSlice{}
+		rs.InitRangeSlice()
+		p.ranges[i] = rs
+	}
+}
+
+func (p *RangeSlicePool) Reset() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, rs := range p.ranges {
+		rs.Reset()
+	}
+}
+
+func (p *RangeSlicePool) GetRangeSliceByCap(cap int) []*Range {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, rs := range p.ranges {
+		if rs.inUse {
+			continue
+		}
+		return rs.GetRangeSliceByCap(cap)
+	}
+
+	return make([]*Range, 0, cap)
+}
+
+func (p *RangeSlicePool) GetRangeSliceByLen(len int) []*Range {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, rs := range p.ranges {
+		if rs.inUse {
+			continue
+		}
+		return rs.GetRangeSliceByLen(len)
+	}
+
+	return make([]*Range, len)
+}
+
+type rangeSlice struct {
 	slice    []*Range
-	offset   int
 	capacity int
+	inUse    bool
 }
 
-func (sa *RangeSliceAllocator) InitRangeSlice() {
-	sa.slice = make([]*Range, 1024, 1024)
-	sa.offset = 0
-	sa.capacity = 1024
+func (sa *rangeSlice) InitRangeSlice() {
+	sa.slice = make([]*Range, rangeNumPerSlice)
+	sa.capacity = rangeNumPerSlice
+	sa.inUse = false
 }
 
-func (sa *RangeSliceAllocator) GetRangeSliceByCap(cap int) []*Range {
-	origOffset := sa.offset
-	if origOffset+cap > sa.capacity {
+func (sa *rangeSlice) GetRangeSliceByCap(cap int) []*Range {
+	if cap > sa.capacity {
 		return make([]*Range, 0, cap)
 	}
-	sa.offset += cap
-	return sa.slice[origOffset : origOffset : origOffset+cap]
+	sa.inUse = true
+	return sa.slice[0:0:cap]
 }
 
-func (sa *RangeSliceAllocator) GetRangeSliceByLen(len int) []*Range {
-	origOffset := sa.offset
-	if origOffset+len > sa.capacity {
+func (sa *rangeSlice) GetRangeSliceByLen(len int) []*Range {
+	if len > sa.capacity {
 		return make([]*Range, len)
 	}
-	sa.offset += len
-	return sa.slice[origOffset : origOffset+len : origOffset+len]
+	sa.inUse = true
+	return sa.slice[0:len:len]
 }
 
-func (sa *RangeSliceAllocator) Reset() {
-	sa.offset = 0
+func (sa *rangeSlice) Reset() {
+	sa.inUse = false
 }
 
 // MutableRanges represents a range may change after it is created.

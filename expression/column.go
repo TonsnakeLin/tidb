@@ -17,6 +17,7 @@ package expression
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/pingcap/errors"
@@ -35,38 +36,83 @@ import (
 
 const SizeOfExprColumn = int(unsafe.Sizeof(Column{}))
 
-type ExprColumnSliceAllocator struct {
+type ExprColumnSlicePool struct {
+	mutex sync.Mutex
+	cols  [sliceNum]*exprColumnSlice
+}
+
+func (p *ExprColumnSlicePool) Init() {
+	for i := 0; i < sliceNum; i++ {
+		es := &exprColumnSlice{}
+		es.InitColumnSlice()
+		p.cols[i] = es
+	}
+}
+
+func (p *ExprColumnSlicePool) Reset() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, cs := range p.cols {
+		cs.Reset()
+	}
+}
+
+func (p *ExprColumnSlicePool) GetColumnSliceByCap(cap int) []*Column {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, cs := range p.cols {
+		if cs.inUse {
+			continue
+		}
+		return cs.GetColumnSliceByCap(cap)
+	}
+
+	return make([]*Column, 0, cap)
+}
+
+func (p *ExprColumnSlicePool) GetColumnSliceByLen(len int) []*Column {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, cs := range p.cols {
+		if cs.inUse {
+			continue
+		}
+		return cs.GetColumnSliceByLen(len)
+	}
+
+	return make([]*Column, len)
+}
+
+type exprColumnSlice struct {
 	columns  []*Column
-	offset   int
 	capacity int
+	inUse    bool
 }
 
-func (cs *ExprColumnSliceAllocator) InitColumnSlice() {
-	cs.columns = make([]*Column, 4096, 4096)
-	cs.offset = 0
-	cs.capacity = 4096
+func (cs *exprColumnSlice) InitColumnSlice() {
+	cs.columns = make([]*Column, exprNumPerSlice)
+	cs.inUse = false
+	cs.capacity = exprNumPerSlice
 }
 
-func (cs *ExprColumnSliceAllocator) GetColumnSliceByCap(cap int) []*Column {
-	origOffset := cs.offset
-	if origOffset+cap > cs.capacity {
+func (cs *exprColumnSlice) GetColumnSliceByCap(cap int) []*Column {
+	if cap > cs.capacity {
 		return make([]*Column, 0, cap)
 	}
-	cs.offset += cap
-	return cs.columns[origOffset : origOffset : origOffset+cap]
+	cs.inUse = true
+	return cs.columns[0:0:cap]
 }
 
-func (cs *ExprColumnSliceAllocator) GetColumnSliceByLen(len int) []*Column {
-	origOffset := cs.offset
-	if origOffset+len > cs.capacity {
+func (cs *exprColumnSlice) GetColumnSliceByLen(len int) []*Column {
+	if len > cs.capacity {
 		return make([]*Column, len)
 	}
-	cs.offset += len
-	return cs.columns[origOffset : origOffset+len : origOffset+len]
+	cs.inUse = true
+	return cs.columns[0:len:len]
 }
 
-func (cs *ExprColumnSliceAllocator) Reset() {
-	cs.offset = 0
+func (cs *exprColumnSlice) Reset() {
+	cs.inUse = false
 }
 
 // CorrelatedColumn stands for a column in a correlated sub query.

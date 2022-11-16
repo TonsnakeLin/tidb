@@ -45,75 +45,93 @@ import (
 
 // These are byte flags used for `HashCode()`.
 const (
-	constantFlag       byte   = 0
-	columnFlag         byte   = 1
-	scalarFunctionFlag byte   = 3
-	parameterFlag      byte   = 4
-	sliceNum           uint64 = 64
-	exprNumPerSlice    int    = 4096
+	constantFlag       byte = 0
+	columnFlag         byte = 1
+	scalarFunctionFlag byte = 3
+	parameterFlag      byte = 4
+	sliceNum           int  = 16
+	exprNumPerSlice    int  = 64
 )
 
 // var GlobalExprSlicePool ExpressionSlicePool
-/*
+
 type ExpressionSlicePool struct {
 	mutex sync.Mutex
-	exprs [sliceNum]*ExpressionSlice
+	exprs [sliceNum]*expressionSlice
 }
-*/
 
-/*
-func init() {
-	var i uint64
-	for i = 0; i < sliceNum; i++ {
-		es := &ExpressionSlice{}
+func (p *ExpressionSlicePool) Init() {
+	for i := 0; i < sliceNum; i++ {
+		es := &expressionSlice{}
 		es.InitExprSlice()
-		GlobalExprSlicePool.exprs[i] = es
+		p.exprs[i] = es
 	}
 }
 
-func GetExprSliceByCap(slot uint64, cap int) []Expression {
-	es := GlobalExprSlicePool.exprs[slot%sliceNum]
-	return es.GetExprSliceByCap(cap)
+func (p *ExpressionSlicePool) Reset() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, es := range p.exprs {
+		es.Reset()
+	}
 }
 
-func GetExprSliceByLen(slot uint64, len int) []Expression {
-	es := GlobalExprSlicePool.exprs[slot%sliceNum]
-	return es.GetExprSliceByLen(len)
-}
-*/
+func (p *ExpressionSlicePool) GetExprSliceByCap(cap int) []Expression {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, es := range p.exprs {
+		if es.inUse {
+			continue
+		}
+		return es.GetExprSliceByCap(cap)
+	}
 
-type ExpressionSlice struct {
+	return make([]Expression, 0, cap)
+}
+
+func (p *ExpressionSlicePool) GetExprSliceByLen(len int) []Expression {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, es := range p.exprs {
+		if es.inUse {
+			continue
+		}
+		return es.GetExprSliceByLen(len)
+	}
+
+	return make([]Expression, len)
+}
+
+type expressionSlice struct {
 	exprs         []Expression
-	exprsOffset   int
 	exprsCapacity int
+	inUse         bool
 }
 
-func (es *ExpressionSlice) InitExprSlice() {
-	es.exprs = make([]Expression, 4096, 4096)
-	es.exprsOffset = 0
-	es.exprsCapacity = 4096
+func (es *expressionSlice) InitExprSlice() {
+	es.exprs = make([]Expression, exprNumPerSlice)
+	es.inUse = false
+	es.exprsCapacity = exprNumPerSlice
 }
 
-func (es *ExpressionSlice) Reset() {
-	es.exprsOffset = 0
+func (es *expressionSlice) Reset() {
+	es.inUse = false
 }
 
-func (es *ExpressionSlice) GetExprSliceByCap(cap int) []Expression {
-	origOffset := es.exprsOffset
-	if origOffset+cap > es.exprsCapacity {
+func (es *expressionSlice) GetExprSliceByCap(cap int) []Expression {
+	if cap > es.exprsCapacity {
 		return make([]Expression, 0, cap)
 	}
-	es.exprsOffset += cap
-	return es.exprs[origOffset : origOffset : origOffset+cap]
+	es.inUse = true
+	return es.exprs[0:0:cap]
 }
 
-func (es *ExpressionSlice) GetExprSliceByLen(len int) []Expression {
-	origOffset := es.exprsOffset
-	if origOffset+len > es.exprsCapacity {
+func (es *expressionSlice) GetExprSliceByLen(len int) []Expression {
+	if len > es.exprsCapacity {
 		return make([]Expression, len)
 	}
-	es.exprsOffset += len
-	return es.exprs[origOffset : origOffset+len : origOffset+len]
+	es.inUse = true
+	return es.exprs[0:len:len]
 }
 
 // EvalAstExpr evaluates ast expression directly.
