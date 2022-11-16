@@ -885,7 +885,7 @@ func (d *rangeDetacher) detachCondAndBuildRangeForCols() (*DetachRangeResult, er
 	// newTpSlice := make([]*types.FieldType, 0, len(d.cols))
 	newTpSlice := d.sctx.GetSessionVars().GetFldTypeSliceByCap(len(d.cols))
 	for _, col := range d.cols {
-		newTpSlice = append(newTpSlice, newFieldType(col.RetType))
+		newTpSlice = append(newTpSlice, newFieldTypeUsingCache(d.sctx, col.RetType))
 	}
 	if len(d.allConds) == 1 {
 		if sf, ok := d.allConds[0].(*expression.ScalarFunction); ok && sf.FuncName.L == ast.LogicOr {
