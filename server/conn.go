@@ -1091,7 +1091,7 @@ func (cc *clientConn) Run(ctx context.Context) {
 		vsp.Init()
 		cc.memPoolSet.SliceAllocator.VisitInfoSlices = vsp
 	}
-	sessVars.SetMixedMemPool(cc.memPoolSet)
+	// sessVars.SetMixedMemPool(cc.memPoolSet)
 	// Usually, client connection status changes between [dispatching] <=> [reading].
 	// When some event happens, server may notify this client connection by setting
 	// the status to special values, for example: kill or graceful shutdown.
