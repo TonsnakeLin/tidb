@@ -71,7 +71,10 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const sizeOfExecStmt = int(unsafe.Sizeof(ExecStmt{}))
+const (
+	sizeOfExecStmt  = int(unsafe.Sizeof(ExecStmt{}))
+	sizeOfRecordSet = int(unsafe.Sizeof(recordSet{}))
+)
 
 // metrics option
 var (
@@ -557,11 +560,23 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 		txnStartTS = txn.StartTS()
 	}
 
-	return &recordSet{
-		executor:   e,
-		stmt:       a,
-		txnStartTS: txnStartTS,
-	}, nil
+	var rSet *recordSet
+	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRecordSet, true)
+	if ptr != nil {
+		rSet = (*recordSet)(ptr)
+		*rSet = recordSet{
+			executor:   e,
+			stmt:       a,
+			txnStartTS: txnStartTS,
+		}
+	} else {
+		rSet = &recordSet{
+			executor:   e,
+			stmt:       a,
+			txnStartTS: txnStartTS,
+		}
+	}
+	return rSet, nil
 }
 
 func (a *ExecStmt) handleStmtForeignKeyTrigger(ctx context.Context, e Executor) error {

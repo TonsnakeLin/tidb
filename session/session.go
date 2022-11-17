@@ -35,6 +35,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/ngaut/pools"
 	"github.com/opentracing/opentracing-go"
@@ -150,6 +151,8 @@ var (
 	telemetryUnlockUserUsage        = metrics.TelemetryAccountLockCnt.WithLabelValues("unlockUser")
 	telemetryCreateOrAlterUserUsage = metrics.TelemetryAccountLockCnt.WithLabelValues("createOrAlterUser")
 )
+
+const sizeOfExecStmtResult = int(unsafe.Sizeof(execStmtResult{}))
 
 // Session context, it is consistent with the lifecycle of a client connection.
 type Session interface {
@@ -2350,11 +2353,23 @@ func runStmt(ctx context.Context, se *session, s sqlexec.Statement) (rs sqlexec.
 				}
 			}
 		}
-		return &execStmtResult{
-			RecordSet: rs,
-			sql:       s,
-			se:        se,
-		}, err
+		var execRes *execStmtResult
+		ptr := sessVars.GetObjectPointer(sizeOfExecStmtResult, true)
+		if ptr != nil {
+			execRes = (*execStmtResult)(ptr)
+			*execRes = execStmtResult{
+				RecordSet: rs,
+				sql:       s,
+				se:        se,
+			}
+		} else {
+			execRes = &execStmtResult{
+				RecordSet: rs,
+				sql:       s,
+				se:        se,
+			}
+		}
+		return execRes, err
 	}
 
 	err = finishStmt(ctx, se, err, s)
@@ -2393,6 +2408,9 @@ type execStmtResult struct {
 
 func (rs *execStmtResult) Close() error {
 	se := rs.se
+	if rs.RecordSet == nil {
+		logutil.BgLogger().Error("execStmtResult.RecordSet is nil")
+	}
 	if err := rs.RecordSet.Close(); err != nil {
 		return finishStmt(context.Background(), se, err, rs.sql)
 	}
