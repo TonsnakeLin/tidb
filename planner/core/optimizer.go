@@ -218,13 +218,14 @@ func VisitInfo4PrivCheck(sctx sessionctx.Context, is infoschema.InfoSchema, node
 		privVisitInfo = vs
 	default:
 		// privVisitInfo = make([]visitInfo, 0, len(vs))
-		if sctx.GetSessionVars().MixedMemPool != nil {
-			privVisitInfo = sctx.GetSessionVars().MixedMemPool.
-				GetVisitInfoSlice().(*VisitInfoSlicePool).GetVisitInfoSliceByCap(len(vs))
-		} else {
-			privVisitInfo = make([]visitInfo, 0, len(vs))
-		}
-
+		/*
+			if sctx.GetSessionVars().MixedMemPool != nil {
+				privVisitInfo = sctx.GetSessionVars().MixedMemPool.
+					GetVisitInfoSlice().(*VisitInfoSlicePool).GetVisitInfoSliceByCap(len(vs))
+			} else {
+				privVisitInfo = make([]visitInfo, 0, len(vs))
+			}
+		*/
 		for _, v := range vs {
 			if needCheckTmpTablePriv(is, v) {
 				privVisitInfo = append(privVisitInfo, v)

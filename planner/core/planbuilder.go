@@ -934,14 +934,16 @@ func (b *PlanBuilder) buildChange(v *ast.ChangeStmt) (Plan, error) {
 
 func (b *PlanBuilder) buildExecute(ctx context.Context, v *ast.ExecuteStmt) (Plan, error) {
 	// vars := make([]expression.Expression, 0, len(v.UsingVars))
-	var vars []expression.Expression
+	// var vars []expression.Expression
 	sessVars := b.ctx.GetSessionVars()
-	if sessVars.MixedMemPool != nil {
-		vars = sessVars.MixedMemPool.GetExprSlices().(*expression.ExpressionSlicePool).GetExprSliceByCap(len(v.UsingVars))
-	} else {
-		vars = make([]expression.Expression, 0, len(v.UsingVars))
-	}
-
+	/*
+		if sessVars.MixedMemPool != nil {
+			vars = sessVars.MixedMemPool.GetExprSlices().(*expression.ExpressionSlicePool).GetExprSliceByCap(len(v.UsingVars))
+		} else {
+			vars = make([]expression.Expression, 0, len(v.UsingVars))
+		}
+	*/
+	vars := make([]expression.Expression, 0, len(v.UsingVars))
 	for _, expr := range v.UsingVars {
 		newExpr, _, err := b.rewrite(ctx, expr, nil, nil, true)
 		if err != nil {
