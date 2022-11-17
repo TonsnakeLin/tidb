@@ -37,6 +37,7 @@ import (
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/sqlexec"
 	"github.com/pingcap/tidb/util/topsql/stmtstats"
 )
@@ -254,6 +255,9 @@ func (tc *TiDBContext) ExecuteStmt(ctx context.Context, stmt ast.StmtNode) (Resu
 		*res = tidbResultSet{
 			recordSet: rs,
 		}
+		if res.recordSet == nil {
+			logutil.BgLogger().Error("res.recordSet is nil")
+		}
 	} else {
 		res = &tidbResultSet{
 			recordSet: rs,
@@ -440,6 +444,9 @@ func (trs *tidbResultSet) GetFetchedRows() []chunk.Row {
 }
 
 func (trs *tidbResultSet) Close() error {
+	if trs.recordSet == nil {
+		logutil.BgLogger().Error("res.recordSet is nil")
+	}
 	if !atomic.CompareAndSwapInt32(&trs.closed, 0, 1) {
 		return nil
 	}

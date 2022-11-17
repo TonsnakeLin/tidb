@@ -59,6 +59,7 @@ import (
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/hack"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/topsql"
 	topsqlstate "github.com/pingcap/tidb/util/topsql/state"
 	"github.com/tikv/client-go/v2/util"
@@ -296,6 +297,9 @@ func (cc *clientConn) executePreparedStmtAndWriteResult(ctx context.Context, stm
 	if result, ok := rs.(*tidbResultSet); ok {
 		if planCacheStmt, ok := prepStmt.(*plannercore.PlanCacheStmt); ok {
 			result.preparedStmt = planCacheStmt
+		}
+		if result.recordSet == nil {
+			logutil.BgLogger().Error("res.recordSet is nil")
 		}
 	}
 
