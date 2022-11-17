@@ -1070,7 +1070,7 @@ func (cc *clientConn) Run(ctx context.Context) {
 			metrics.PanicCounter.WithLabelValues(metrics.LabelSession).Inc()
 		}
 	}()
-	sessVars := cc.ctx.GetSessionVars()
+	// sessVars := cc.ctx.GetSessionVars()
 	if cc.memPoolSet.SliceAllocator.ExprSlices == nil {
 		esp := &expression.ExpressionSlicePool{}
 		esp.Init()
