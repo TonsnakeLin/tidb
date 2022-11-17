@@ -17,12 +17,7 @@ package arena
 import (
 	"reflect"
 	"sync"
-	"time"
 	"unsafe"
-
-	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/types"
 )
 
 type IntSliceAllocator struct {
@@ -162,13 +157,13 @@ type MemPoolSet struct {
 	mutex          sync.Mutex
 	ObjAllocator   *ObjectorAllocator
 	SliceAllocator *SliceAlloctor
-	MapAlloctor    *MapAllocator
+	// MapAlloctor    *MapAllocator
 }
 
 func (mps *MemPoolSet) ResetMemPoolSet() {
 	mps.ObjAllocator.Reset()
 	mps.SliceAllocator.Reset()
-	mps.MapAlloctor.Reset()
+	// mps.MapAlloctor.Reset()
 }
 
 func NewMemPoolSet() *MemPoolSet {
@@ -178,18 +173,19 @@ func NewMemPoolSet() *MemPoolSet {
 	sliceAllocator := &SliceAlloctor{}
 	sliceAllocator.InitSliceAlloctor()
 
-	mapAllocator := &MapAllocator{}
-	mapAllocator.InitMapAllocator()
+	// mapAllocator := &MapAllocator{}
+	// mapAllocator.InitMapAllocator()
 
 	return &MemPoolSet{
 		ObjAllocator:   objAllocator,
 		SliceAllocator: sliceAllocator,
-		MapAlloctor:    mapAllocator,
+		// MapAlloctor:    mapAllocator,
 	}
 }
 
 // map interface
 // map interface
+/*
 func (mps *MemPoolSet) GetIsolationReadEnginesMap() map[kv.StoreType]struct{} {
 	return mps.MapAlloctor.GetIsolationReadEnginesMap()
 }
@@ -209,6 +205,7 @@ func (mps *MemPoolSet) GetStatsLoadStatusMap() map[model.TableItemID]string {
 func (mps *MemPoolSet) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
 	return mps.MapAlloctor.GetTblInfo2UnionScanMap()
 }
+*/
 
 // ObjAllocator interface
 // ObjAllocator interface
@@ -237,28 +234,29 @@ func (mps *MemPoolSet) GetVisitInfoSlice() any {
 }
 
 // Slices interfaces which have definite type
+/*
 func (mps *MemPoolSet) GetDatumSliceByCap(cap int) []types.Datum {
 	return mps.SliceAllocator.DatumSlice.GetDatumSliceByCap(cap)
 }
 
 func (mps *MemPoolSet) GetDatumSliceByLen(len int) []types.Datum {
-	return mps.SliceAllocator.DatumSlice.GetDatumSliceByLen(len)
+	// return mps.SliceAllocator.DatumSlice.GetDatumSliceByLen(len)
 }
 
 func (mps *MemPoolSet) GetFldTypeSliceByCap(cap int) []*types.FieldType {
-	return mps.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByCap(cap)
+	// return mps.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByCap(cap)
 }
 
 func (mps *MemPoolSet) GetFldTypeSliceByLen(len int) []*types.FieldType {
-	return mps.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByLen(len)
+	// return mps.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByLen(len)
 }
 
 func (mps *MemPoolSet) GetFldNameSliceByCap(cap int) []*types.FieldName {
-	return mps.SliceAllocator.FieldNameSlice.GetFldNameSliceByCap(cap)
+	// return mps.SliceAllocator.FieldNameSlice.GetFldNameSliceByCap(cap)
 }
 
 func (mps *MemPoolSet) GetFldNameSliceByLen(len int) []*types.FieldName {
-	return mps.SliceAllocator.FieldNameSlice.GetFldNameSliceByLen(len)
+	// return mps.SliceAllocator.FieldNameSlice.GetFldNameSliceByLen(len)
 }
 
 func (mps *MemPoolSet) GetModelColumnInfoSliceByCap(cap int) []*model.ColumnInfo {
@@ -284,7 +282,7 @@ func (mps *MemPoolSet) GetByteSliceByCap(cap int) []byte {
 func (mps *MemPoolSet) GetByteSliceByLen(len int) []byte {
 	return mps.SliceAllocator.ByteSlice.GetByteSliceByCap(len)
 }
-
+*/
 // ObjectorAllocator is a .
 type ObjectorAllocator struct {
 	mutex    sync.Mutex
@@ -326,49 +324,57 @@ type SliceAlloctor struct {
 	ExprColSlices   any
 	UtilRangeSlice  any
 	VisitInfoSlices any
-	IntSlice        *IntSliceAllocator
-	ByteSlice       *ByteSliceAllocator
-	DatumSlice      *types.DatumSliceAllocator
-	FieldTypeSlice  *types.FieldTypeSliceAllocator
-	FieldNameSlice  *types.FieldNameSliceAllocator
-	ModelColumnInfo *model.ModelColumnInfoSliceAllocator
+	/*
+		IntSlice        *IntSliceAllocator
+		ByteSlice       *ByteSliceAllocator
+		DatumSlice      *types.DatumSliceAllocator
+		FieldTypeSlice  *types.FieldTypeSliceAllocator
+		FieldNameSlice  *types.FieldNameSliceAllocator
+		ModelColumnInfo *model.ModelColumnInfoSliceAllocator
 
-	TableAliasInJoin []map[string]interface{}
-	CteCanUsed       []string
-	CteBeforeOffset  []int
+		TableAliasInJoin []map[string]interface{}
+		CteCanUsed       []string
+		CteBeforeOffset  []int
+	*/
 }
 
 func (sa *SliceAlloctor) Reset() {
-	sa.DatumSlice.Reset()
-	sa.FieldTypeSlice.Reset()
-	sa.FieldNameSlice.Reset()
-	sa.ModelColumnInfo.Reset()
-	sa.IntSlice.Reset()
-	sa.ByteSlice.Reset()
-	sa.TableAliasInJoin = sa.TableAliasInJoin[0:]
-	sa.CteCanUsed = sa.CteCanUsed[0:]
-	sa.CteBeforeOffset = sa.CteBeforeOffset[0:]
+	/*
+		sa.DatumSlice.Reset()
+		sa.FieldTypeSlice.Reset()
+		sa.FieldNameSlice.Reset()
+		sa.ModelColumnInfo.Reset()
+		sa.IntSlice.Reset()
+		sa.ByteSlice.Reset()
+		sa.TableAliasInJoin = sa.TableAliasInJoin[0:]
+		sa.CteCanUsed = sa.CteCanUsed[0:]
+		sa.CteBeforeOffset = sa.CteBeforeOffset[0:]
+	*/
 }
 
 func (sa *SliceAlloctor) InitSliceAlloctor() {
-	sa.DatumSlice = &types.DatumSliceAllocator{}
-	sa.FieldTypeSlice = &types.FieldTypeSliceAllocator{}
-	sa.FieldNameSlice = &types.FieldNameSliceAllocator{}
-	sa.ModelColumnInfo = &model.ModelColumnInfoSliceAllocator{}
-	sa.IntSlice = &IntSliceAllocator{}
-	sa.ByteSlice = &ByteSliceAllocator{}
-	sa.DatumSlice.InitDatumSlice()
-	sa.FieldTypeSlice.InitFieldTypeSlice()
-	sa.FieldNameSlice.InitFieldNameSlice()
-	sa.ModelColumnInfo.InitColumnInfoSlice()
-	sa.IntSlice.InitIntSlice()
-	sa.ByteSlice.InitByteSlice()
+	/*
+			sa.DatumSlice = &types.DatumSliceAllocator{}
+			sa.FieldTypeSlice = &types.FieldTypeSliceAllocator{}
+			sa.FieldNameSlice = &types.FieldNameSliceAllocator{}
+			sa.ModelColumnInfo = &model.ModelColumnInfoSliceAllocator{}
+			sa.IntSlice = &IntSliceAllocator{}
+			sa.ByteSlice = &ByteSliceAllocator{}
+			sa.DatumSlice.InitDatumSlice()
+			sa.FieldTypeSlice.InitFieldTypeSlice()
+			sa.FieldNameSlice.InitFieldNameSlice()
+			sa.ModelColumnInfo.InitColumnInfoSlice()
+			sa.IntSlice.InitIntSlice()
+			sa.ByteSlice.InitByteSlice()
 
-	sa.TableAliasInJoin = make([]map[string]interface{}, 0)
-	sa.CteCanUsed = make([]string, 0)
-	sa.CteBeforeOffset = make([]int, 0)
+
+		sa.TableAliasInJoin = make([]map[string]interface{}, 0)
+		sa.CteCanUsed = make([]string, 0)
+		sa.CteBeforeOffset = make([]int, 0)
+	*/
 }
 
+/*
 type StringToDurationMaps struct {
 	mutex    sync.Mutex
 	maps     []map[string]time.Duration
@@ -454,3 +460,4 @@ func (ma *MapAllocator) GetIsolationReadEnginesMap() map[kv.StoreType]struct{} {
 func (ma *MapAllocator) Reset() {
 	// do nothing, when getting map, it will reset the map
 }
+*/

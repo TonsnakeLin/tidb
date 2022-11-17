@@ -396,13 +396,16 @@ func parseExecArgs(vars *variable.SessionVars, params []expression.Expression, b
 		enc = newInputDecoder(charset.CharsetUTF8)
 	}
 
-	var args []types.Datum
-	if vars.MixedMemPool != nil {
-		args = vars.MixedMemPool.GetDatumSliceByLen(len(params))
-	} else {
-		args = make([]types.Datum, len(params))
-	}
-	// args := make([]types.Datum, len(params))
+	/*
+		var args []types.Datum
+
+		if vars.MixedMemPool != nil {
+			args = vars.MixedMemPool.GetDatumSliceByLen(len(params))
+		} else {
+			args = make([]types.Datum, len(params))
+		}
+	*/
+	args := make([]types.Datum, len(params))
 
 	for i := 0; i < len(args); i++ {
 		// if params had received via ComStmtSendLongData, use them directly.
