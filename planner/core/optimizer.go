@@ -220,7 +220,7 @@ func VisitInfo4PrivCheck(sctx sessionctx.Context, is infoschema.InfoSchema, node
 		// privVisitInfo = make([]visitInfo, 0, len(vs))
 		if sctx.GetSessionVars().MixedMemPool != nil {
 			privVisitInfo = sctx.GetSessionVars().MixedMemPool.
-				GetVisitInfoSlice().(*VisitInfoSliceAllocator).GetVisitInfoSliceByCap(len(vs))
+				GetVisitInfoSlice().(*VisitInfoSlicePool).GetVisitInfoSliceByCap(len(vs))
 		} else {
 			privVisitInfo = make([]visitInfo, 0, len(vs))
 		}

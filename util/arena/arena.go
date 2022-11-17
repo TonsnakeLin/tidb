@@ -233,7 +233,7 @@ func (mps *MemPoolSet) GetUtilRangeSlice() any {
 }
 
 func (mps *MemPoolSet) GetVisitInfoSlice() any {
-	return mps.SliceAllocator.VisitInfoSlice
+	return mps.SliceAllocator.VisitInfoSlices
 }
 
 // Slices interfaces which have definite type
@@ -325,7 +325,7 @@ type SliceAlloctor struct {
 	ExprSlices      any
 	ExprColSlices   any
 	UtilRangeSlice  any
-	VisitInfoSlice  any
+	VisitInfoSlices any
 	IntSlice        *IntSliceAllocator
 	ByteSlice       *ByteSliceAllocator
 	DatumSlice      *types.DatumSliceAllocator

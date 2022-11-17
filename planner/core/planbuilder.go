@@ -22,6 +22,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -69,38 +70,88 @@ import (
 	"go.uber.org/zap"
 )
 
-type VisitInfoSliceAllocator struct {
+const (
+	sliceNum    = 4
+	numPerSlice = 32
+)
+
+type VisitInfoSlicePool struct {
+	mutex      sync.Mutex
+	visitInfos [sliceNum]*visitInfoSlice
+}
+
+func (p *VisitInfoSlicePool) Init() {
+	for i := 0; i < sliceNum; i++ {
+		vs := &visitInfoSlice{}
+		vs.InitVisitInfoSlice()
+		p.visitInfos[i] = vs
+	}
+}
+
+func (p *VisitInfoSlicePool) Reset() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, vs := range p.visitInfos {
+		vs.Reset()
+	}
+}
+
+func (p *VisitInfoSlicePool) GetVisitInfoSliceByCap(cap int) []visitInfo {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, vs := range p.visitInfos {
+		if vs.inUse {
+			continue
+		}
+		return vs.GetVisitInfoSliceByCap(cap)
+	}
+
+	return make([]visitInfo, 0, cap)
+}
+
+func (p *VisitInfoSlicePool) GetVisitInfoSliceByLen(len int) []visitInfo {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, vs := range p.visitInfos {
+		if vs.inUse {
+			continue
+		}
+		return vs.GetVisitInfoSliceByLen(len)
+	}
+
+	return make([]visitInfo, len)
+}
+
+type visitInfoSlice struct {
 	slice    []visitInfo
-	offset   int
 	capacity int
+	inUse    bool
 }
 
-func (sa *VisitInfoSliceAllocator) InitVisitInfoSlice() {
-	sa.slice = make([]visitInfo, 64, 64)
-	sa.offset = 0
-	sa.capacity = 64
+func (sa *visitInfoSlice) InitVisitInfoSlice() {
+	sa.slice = make([]visitInfo, numPerSlice)
+	sa.capacity = numPerSlice
+	sa.inUse = false
 }
 
-func (sa *VisitInfoSliceAllocator) GetVisitInfoSliceByCap(cap int) []visitInfo {
-	origOffset := sa.offset
-	if origOffset+cap > sa.capacity {
+func (sa *visitInfoSlice) GetVisitInfoSliceByCap(cap int) []visitInfo {
+	if cap > sa.capacity {
 		return make([]visitInfo, 0, cap)
 	}
-	sa.offset += cap
-	return sa.slice[origOffset : origOffset : origOffset+cap]
+	sa.inUse = true
+	return sa.slice[0:0:cap]
 }
 
-func (sa *VisitInfoSliceAllocator) GetVisitInfoSliceByLen(len int) []visitInfo {
-	origOffset := sa.offset
-	if origOffset+len > sa.capacity {
+func (sa *visitInfoSlice) GetVisitInfoSliceByLen(len int) []visitInfo {
+	if len > sa.capacity {
 		return make([]visitInfo, len)
 	}
-	sa.offset += len
-	return sa.slice[origOffset : origOffset+len : origOffset+len]
+	sa.inUse = true
+	return sa.slice[0:len:len]
 }
 
-func (sa *VisitInfoSliceAllocator) Reset() {
-	sa.offset = 0
+func (sa *visitInfoSlice) Reset() {
+	sa.inUse = false
 }
 
 type visitInfo struct {

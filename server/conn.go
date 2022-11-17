@@ -1086,10 +1086,10 @@ func (cc *clientConn) Run(ctx context.Context) {
 		rs.Init()
 		cc.memPoolSet.SliceAllocator.UtilRangeSlice = rs
 	}
-	if cc.memPoolSet.SliceAllocator.VisitInfoSlice == nil {
-		vs := &core.VisitInfoSliceAllocator{}
-		vs.InitVisitInfoSlice()
-		cc.memPoolSet.SliceAllocator.VisitInfoSlice = vs
+	if cc.memPoolSet.SliceAllocator.VisitInfoSlices == nil {
+		vsp := &core.VisitInfoSlicePool{}
+		vsp.Init()
+		cc.memPoolSet.SliceAllocator.VisitInfoSlices = vsp
 	}
 	sessVars.SetMixedMemPool(cc.memPoolSet)
 	// Usually, client connection status changes between [dispatching] <=> [reading].
@@ -1110,7 +1110,7 @@ func (cc *clientConn) Run(ctx context.Context) {
 		cc.memPoolSet.SliceAllocator.ExprSlices.(*expression.ExpressionSlicePool).Reset()
 		cc.memPoolSet.SliceAllocator.ExprColSlices.(*expression.ExprColumnSlicePool).Reset()
 		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSlicePool).Reset()
-		cc.memPoolSet.SliceAllocator.VisitInfoSlice.(*core.VisitInfoSliceAllocator).Reset()
+		cc.memPoolSet.SliceAllocator.VisitInfoSlices.(*core.VisitInfoSlicePool).Reset()
 		// close connection when idle time is more than wait_timeout
 		waitTimeout := cc.getSessionVarsWaitTimeout(ctx)
 		cc.pkt.setReadTimeout(time.Duration(waitTimeout) * time.Second)
