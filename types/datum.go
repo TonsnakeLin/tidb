@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 	"unsafe"
@@ -60,38 +61,88 @@ const (
 	KindMysqlJSON     byte = 18
 )
 
-type DatumSliceAllocator struct {
-	datums         []Datum
-	datumsOffset   int
-	datumsCapacity int
+const (
+	sliceNum    int = 16
+	numPerSlice int = 16
+)
+
+type DatumSlicePool struct {
+	mutex  sync.Mutex
+	datums [sliceNum]*datumSlice
 }
 
-func (ds *DatumSliceAllocator) InitDatumSlice() {
-	ds.datums = make([]Datum, 4096, 4096)
-	ds.datumsOffset = 0
-	ds.datumsCapacity = 4096
+func (p *DatumSlicePool) Init() {
+	for i := 0; i < sliceNum; i++ {
+		ds := &datumSlice{}
+		ds.InitDatumSlice(numPerSlice * (i/4 + 1))
+		p.datums[i] = ds
+	}
 }
 
-func (ds *DatumSliceAllocator) GetDatumSliceByCap(cap int) []Datum {
-	origOffset := ds.datumsOffset
-	if origOffset+cap > ds.datumsCapacity {
+func (p *DatumSlicePool) Reset() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, ds := range p.datums {
+		ds.Reset()
+	}
+}
+
+func (p *DatumSlicePool) GetDatumSliceByCap(cap int) []Datum {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, ds := range p.datums {
+		if ds.inUse {
+			continue
+		}
+		return ds.GetDatumSliceByCap(cap)
+	}
+
+	return make([]Datum, 0, cap)
+}
+
+func (p *DatumSlicePool) GetDatumSliceByLen(len int) []Datum {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, ds := range p.datums {
+		if ds.inUse {
+			continue
+		}
+		return ds.GetDatumSliceByLen(len)
+	}
+
+	return make([]Datum, len)
+}
+
+type datumSlice struct {
+	datums   []Datum
+	capacity int
+	inUse    bool
+}
+
+func (ds *datumSlice) InitDatumSlice(cap int) {
+	ds.datums = make([]Datum, cap, cap)
+	ds.capacity = cap
+	ds.inUse = false
+}
+
+func (ds *datumSlice) GetDatumSliceByCap(cap int) []Datum {
+	if cap > ds.capacity {
 		return make([]Datum, 0, cap)
 	}
-	ds.datumsOffset += cap
-	return ds.datums[origOffset : origOffset : origOffset+cap]
+	ds.inUse = true
+	return ds.datums[0:0:cap]
 }
 
-func (ds *DatumSliceAllocator) GetDatumSliceByLen(len int) []Datum {
-	origOffset := ds.datumsOffset
-	if origOffset+len > ds.datumsCapacity {
-		return make([]Datum, len, len)
+func (ds *datumSlice) GetDatumSliceByLen(len int) []Datum {
+	if len > ds.capacity {
+		return make([]Datum, len)
 	}
-	ds.datumsOffset += len
-	return ds.datums[origOffset : origOffset+len : origOffset+len]
+	ds.inUse = true
+	return ds.datums[0:len:len]
 }
 
-func (ds *DatumSliceAllocator) Reset() {
-	ds.datumsOffset = 0
+func (ds *datumSlice) Reset() {
+	ds.inUse = false
 }
 
 // Datum is a data box holds different kind of data.

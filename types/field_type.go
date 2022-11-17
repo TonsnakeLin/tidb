@@ -17,6 +17,8 @@ package types
 import (
 	"fmt"
 	"strconv"
+	"sync"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/parser/charset"
@@ -33,41 +35,88 @@ const UnspecifiedLength = -1
 // ErrorLength is error length for blob or text.
 const ErrorLength = 0
 
+const SizeOfFieldType = int(unsafe.Sizeof(FieldType{}))
+
 // FieldType records field type information.
 type FieldType = ast.FieldType
 
-type FieldTypeSliceAllocator struct {
+type FieldTypeSlicePool struct {
+	mutex    sync.Mutex
+	fldTypes [sliceNum]*fieldTypeSlice
+}
+
+func (p *FieldTypeSlicePool) Init() {
+	for i := 0; i < sliceNum; i++ {
+		ft := &fieldTypeSlice{}
+		ft.InitFieldTypeSlice(numPerSlice * (i/4 + 1))
+		p.fldTypes[i] = ft
+	}
+}
+
+func (p *FieldTypeSlicePool) Reset() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, ds := range p.fldTypes {
+		ds.Reset()
+	}
+}
+
+func (p *FieldTypeSlicePool) GetFldTypeSliceByCap(cap int) []*FieldType {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, fts := range p.fldTypes {
+		if fts.inUse {
+			continue
+		}
+		return fts.GetFldTypeSliceByCap(cap)
+	}
+
+	return make([]*FieldType, 0, cap)
+}
+
+func (p *FieldTypeSlicePool) GetFldTypeSliceByLen(len int) []*FieldType {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, fts := range p.fldTypes {
+		if fts.inUse {
+			continue
+		}
+		return fts.GetFldTypeSliceByLen(len)
+	}
+
+	return make([]*FieldType, len)
+}
+
+type fieldTypeSlice struct {
 	fieldTypes []*FieldType
-	offset     int
 	capacity   int
+	inUse      bool
 }
 
-func (fts *FieldTypeSliceAllocator) InitFieldTypeSlice() {
-	fts.fieldTypes = make([]*FieldType, 4096, 4096)
-	fts.offset = 0
-	fts.capacity = 4096
+func (fts *fieldTypeSlice) InitFieldTypeSlice(cap int) {
+	fts.fieldTypes = make([]*FieldType, cap, cap)
+	fts.capacity = cap
+	fts.inUse = false
 }
 
-func (fts *FieldTypeSliceAllocator) GetFldTypeSliceByCap(cap int) []*FieldType {
-	origOffset := fts.offset
-	if origOffset+cap > fts.capacity {
+func (fts *fieldTypeSlice) GetFldTypeSliceByCap(cap int) []*FieldType {
+	if cap > fts.capacity {
 		return make([]*FieldType, 0, cap)
 	}
-	fts.offset += cap
-	return fts.fieldTypes[origOffset : origOffset : origOffset+cap]
+	fts.inUse = true
+	return fts.fieldTypes[0:0:cap]
 }
 
-func (fts *FieldTypeSliceAllocator) GetFldTypeSliceByLen(len int) []*FieldType {
-	origOffset := fts.offset
-	if origOffset+len > fts.capacity {
+func (fts *fieldTypeSlice) GetFldTypeSliceByLen(len int) []*FieldType {
+	if len > fts.capacity {
 		return make([]*FieldType, len)
 	}
-	fts.offset += len
-	return fts.fieldTypes[origOffset : origOffset+len : origOffset+len]
+	fts.inUse = true
+	return fts.fieldTypes[0:len:len]
 }
 
-func (fts *FieldTypeSliceAllocator) Reset() {
-	fts.offset = 0
+func (fts *fieldTypeSlice) Reset() {
+	fts.inUse = false
 }
 
 // NewFieldType returns a FieldType,

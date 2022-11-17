@@ -28,6 +28,8 @@ import (
 	"github.com/pingcap/tidb/util/collate"
 )
 
+const SizeOfConstantExpr = int(unsafe.Sizeof(Constant{}))
+
 // NewOne stands for a number 1.
 func NewOne() *Constant {
 	retT := types.NewFieldType(mysql.TypeTiny)

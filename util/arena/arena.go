@@ -18,6 +18,8 @@ import (
 	"reflect"
 	"sync"
 	"unsafe"
+
+	"github.com/pingcap/tidb/types"
 )
 
 type IntSliceAllocator struct {
@@ -234,14 +236,15 @@ func (mps *MemPoolSet) GetVisitInfoSlice() any {
 }
 
 // Slices interfaces which have definite type
-/*
 func (mps *MemPoolSet) GetDatumSliceByCap(cap int) []types.Datum {
-	return mps.SliceAllocator.DatumSlice.GetDatumSliceByCap(cap)
+	return mps.SliceAllocator.DatumSlices.GetDatumSliceByCap(cap)
 }
 
 func (mps *MemPoolSet) GetDatumSliceByLen(len int) []types.Datum {
-	// return mps.SliceAllocator.DatumSlice.GetDatumSliceByLen(len)
+	return mps.SliceAllocator.DatumSlices.GetDatumSliceByLen(len)
 }
+
+/*
 
 func (mps *MemPoolSet) GetFldTypeSliceByCap(cap int) []*types.FieldType {
 	// return mps.SliceAllocator.FieldTypeSlice.GetFldTypeSliceByCap(cap)
@@ -324,10 +327,11 @@ type SliceAlloctor struct {
 	ExprColSlices   any
 	UtilRangeSlice  any
 	VisitInfoSlices any
+	DatumSlices     *types.DatumSlicePool
 	/*
 		IntSlice        *IntSliceAllocator
 		ByteSlice       *ByteSliceAllocator
-		DatumSlice      *types.DatumSliceAllocator
+
 		FieldTypeSlice  *types.FieldTypeSliceAllocator
 		FieldNameSlice  *types.FieldNameSliceAllocator
 		ModelColumnInfo *model.ModelColumnInfoSliceAllocator
@@ -339,8 +343,9 @@ type SliceAlloctor struct {
 }
 
 func (sa *SliceAlloctor) Reset() {
+	sa.DatumSlices.Reset()
 	/*
-		sa.DatumSlice.Reset()
+
 		sa.FieldTypeSlice.Reset()
 		sa.FieldNameSlice.Reset()
 		sa.ModelColumnInfo.Reset()
@@ -353,8 +358,10 @@ func (sa *SliceAlloctor) Reset() {
 }
 
 func (sa *SliceAlloctor) InitSliceAlloctor() {
+	sa.DatumSlices = &types.DatumSlicePool{}
+	sa.DatumSlices.Init()
 	/*
-			sa.DatumSlice = &types.DatumSliceAllocator{}
+
 			sa.FieldTypeSlice = &types.FieldTypeSliceAllocator{}
 			sa.FieldNameSlice = &types.FieldNameSliceAllocator{}
 			sa.ModelColumnInfo = &model.ModelColumnInfoSliceAllocator{}

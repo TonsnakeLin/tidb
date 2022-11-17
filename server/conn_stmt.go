@@ -649,7 +649,26 @@ func parseExecArgs(vars *variable.SessionVars, params []expression.Expression, b
 		}
 	}
 
+	// var ft *types.FieldType
+	// var constExpr *expression.Constant
 	for i := range params {
+		/*
+			ptr1 := vars.GetObjectPointer(types.SizeOfFieldType, true)
+			ptr2 := vars.GetObjectPointer(expression.SizeOfConstantExpr, true)
+			if ptr1 != nil && ptr2 != nil {
+				ft = (*types.FieldType)(ptr1)
+				*ft = types.FieldType{}
+				types.DefaultParamTypeForValue(args[i].GetValue(), ft)
+
+				constExpr = (*expression.Constant)(ptr2)
+				*constExpr = expression.Constant{Value: args[i], RetType: ft}
+				params[i] = constExpr
+			} else {
+				ft = new(types.FieldType)
+				types.DefaultParamTypeForValue(args[i].GetValue(), ft)
+				params[i] = &expression.Constant{Value: args[i], RetType: ft}
+			}
+		*/
 		ft := new(types.FieldType)
 		types.DefaultParamTypeForValue(args[i].GetValue(), ft)
 		params[i] = &expression.Constant{Value: args[i], RetType: ft}
