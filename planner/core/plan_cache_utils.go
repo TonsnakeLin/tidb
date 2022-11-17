@@ -307,7 +307,7 @@ func NewPlanCacheKey(sessionVars *variable.SessionVars, stmtText, stmtDB string,
 			hashValue = sessionVars.MixedMemPool.GetByteSliceByCap(256)
 		}
 	*/
-	ptr := sessionVars.GetObjectPointer(sizeOfPlanCacheKey, true)
+	ptr := sessionVars.GetObjectPointer(sizeOfPlanCacheKey, false)
 	if ptr != nil {
 		key = (*planCacheKey)(ptr)
 		*key = planCacheKey{

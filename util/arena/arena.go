@@ -292,14 +292,14 @@ type ObjectorAllocator struct {
 }
 
 func (objAlloc *ObjectorAllocator) Init() {
-	objAlloc.arena = make([]byte, 0, 262144)
+	objAlloc.arena = make([]byte, 262144, 262144)
 	objAlloc.offset = 0
 	objAlloc.capacity = 262144
 }
 
 func (objAlloc *ObjectorAllocator) Reset() {
 	objAlloc.offset = 0
-	(*reflect.SliceHeader)(unsafe.Pointer(&objAlloc.arena)).Len = 0
+	// (*reflect.SliceHeader)(unsafe.Pointer(&objAlloc.arena)).Len = 0
 }
 
 func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
@@ -315,7 +315,7 @@ func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
 	// fmt.Println("objPtr:", objPtr, "data pointer: ", (*reflect.SliceHeader)(arenaPtr).Data)
 
 	objAlloc.offset += len
-	(*reflect.SliceHeader)(unsafe.Pointer(&objAlloc.arena)).Len = objAlloc.offset
+	// (*reflect.SliceHeader)(unsafe.Pointer(&objAlloc.arena)).Len = objAlloc.offset
 	return objPtr
 }
 

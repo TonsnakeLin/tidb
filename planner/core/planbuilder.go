@@ -958,7 +958,7 @@ func (b *PlanBuilder) buildExecute(ctx context.Context, v *ast.ExecuteStmt) (Pla
 	}
 	// exe := &Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
 	var exe *Execute
-	ptr := sessVars.GetObjectPointer(sizeOfExecute, true)
+	ptr := sessVars.GetObjectPointer(sizeOfExecute, false)
 	if ptr != nil {
 		exe = (*Execute)(ptr)
 		*exe = Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}

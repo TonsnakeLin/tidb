@@ -248,7 +248,7 @@ func (tc *TiDBContext) ExecuteStmt(ctx context.Context, stmt ast.StmtNode) (Resu
 		}, nil
 	*/
 	var res *tidbResultSet
-	ptr := tc.Session.GetSessionVars().GetObjectPointer(sizeOfResultSetSize, true)
+	ptr := tc.Session.GetSessionVars().GetObjectPointer(sizeOfResultSetSize, false)
 	if ptr != nil {
 		res = (*tidbResultSet)(ptr)
 		*res = tidbResultSet{
