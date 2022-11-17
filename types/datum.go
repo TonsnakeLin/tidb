@@ -91,7 +91,7 @@ func (p *DatumSlicePool) GetDatumSliceByCap(cap int) []Datum {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	for _, ds := range p.datums {
-		if ds.inUse {
+		if ds.inUse || cap > ds.capacity {
 			continue
 		}
 		return ds.GetDatumSliceByCap(cap)
@@ -104,7 +104,7 @@ func (p *DatumSlicePool) GetDatumSliceByLen(len int) []Datum {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	for _, ds := range p.datums {
-		if ds.inUse {
+		if ds.inUse || len > ds.capacity {
 			continue
 		}
 		return ds.GetDatumSliceByLen(len)
@@ -126,17 +126,11 @@ func (ds *datumSlice) InitDatumSlice(cap int) {
 }
 
 func (ds *datumSlice) GetDatumSliceByCap(cap int) []Datum {
-	if cap > ds.capacity {
-		return make([]Datum, 0, cap)
-	}
 	ds.inUse = true
 	return ds.datums[0:0:cap]
 }
 
 func (ds *datumSlice) GetDatumSliceByLen(len int) []Datum {
-	if len > ds.capacity {
-		return make([]Datum, len)
-	}
 	ds.inUse = true
 	return ds.datums[0:len:len]
 }
