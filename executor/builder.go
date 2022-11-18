@@ -1641,10 +1641,19 @@ func (b *executorBuilder) buildSelection(v *plannercore.PhysicalSelection) Execu
 	if b.err != nil {
 		return nil
 	}
-	e := &SelectionExec{
-		baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
-		filters:      v.Conditions,
+	e := (*SelectionExec)(b.ctx.GetSessionVars().GetObjectPointer(sizeOfSelectionExec, true))
+	if e != nil {
+		*e = SelectionExec{
+			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
+			filters:      v.Conditions,
+		}
+	} else {
+		e = &SelectionExec{
+			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
+			filters:      v.Conditions,
+		}
 	}
+
 	return e
 }
 
@@ -1653,11 +1662,21 @@ func (b *executorBuilder) buildProjection(v *plannercore.PhysicalProjection) Exe
 	if b.err != nil {
 		return nil
 	}
-	e := &ProjectionExec{
-		baseExecutor:     newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
-		numWorkers:       int64(b.ctx.GetSessionVars().ProjectionConcurrency()),
-		evaluatorSuit:    expression.NewEvaluatorSuite(v.Exprs, v.AvoidColumnEvaluator),
-		calculateNoDelay: v.CalculateNoDelay,
+	e := (*ProjectionExec)(b.ctx.GetSessionVars().GetObjectPointer(sizeOfProjectionExec, true))
+	if e != nil {
+		*e = ProjectionExec{
+			baseExecutor:     newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
+			numWorkers:       int64(b.ctx.GetSessionVars().ProjectionConcurrency()),
+			evaluatorSuit:    expression.NewEvaluatorSuite(v.Exprs, v.AvoidColumnEvaluator),
+			calculateNoDelay: v.CalculateNoDelay,
+		}
+	} else {
+		e = &ProjectionExec{
+			baseExecutor:     newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
+			numWorkers:       int64(b.ctx.GetSessionVars().ProjectionConcurrency()),
+			evaluatorSuit:    expression.NewEvaluatorSuite(v.Exprs, v.AvoidColumnEvaluator),
+			calculateNoDelay: v.CalculateNoDelay,
+		}
 	}
 
 	// If the calculation row count for this Projection operator is smaller

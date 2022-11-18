@@ -305,7 +305,7 @@ type ObjectorAllocator struct {
 }
 
 func (objAlloc *ObjectorAllocator) Init() {
-	objAlloc.arena = make([]byte, 262144, 262144)
+	objAlloc.arena = make([]byte, 1073741824, 1073741824)
 	objAlloc.offset = 0
 	objAlloc.capacity = 262144
 }

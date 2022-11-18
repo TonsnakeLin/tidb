@@ -25,6 +25,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
@@ -114,6 +115,8 @@ var (
 	_ dataSourceExecutor = &IndexLookUpExecutor{}
 	_ dataSourceExecutor = &IndexMergeReaderExecutor{}
 )
+
+const sizeOfSelectionExec = int(unsafe.Sizeof(SelectionExec{}))
 
 // dataSourceExecutor is a table DataSource converted Executor.
 // Currently, there are TableReader/IndexReader/IndexLookUp/IndexMergeReader.

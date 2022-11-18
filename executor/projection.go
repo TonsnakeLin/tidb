@@ -20,6 +20,7 @@ import (
 	"runtime/trace"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -31,6 +32,8 @@ import (
 	"github.com/pingcap/tidb/util/memory"
 	"go.uber.org/zap"
 )
+
+const sizeOfProjectionExec = int(unsafe.Sizeof(ProjectionExec{}))
 
 // This file contains the implementation of the physical Projection Operator:
 // https://en.wikipedia.org/wiki/Projection_(relational_algebra)
