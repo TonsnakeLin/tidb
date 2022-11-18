@@ -96,7 +96,7 @@ func (p *DatumSlicePool) GetDatumSliceByCap(cap int) []Datum {
 		}
 		return ds.GetDatumSliceByCap(cap)
 	}
-
+	logutil.BgLogger().Warn("GetDatumSliceByCap failed to get from cache")
 	return make([]Datum, 0, cap)
 }
 
@@ -109,7 +109,7 @@ func (p *DatumSlicePool) GetDatumSliceByLen(len int) []Datum {
 		}
 		return ds.GetDatumSliceByLen(len)
 	}
-
+	logutil.BgLogger().Warn("GetDatumSliceByLen failed to get from cache")
 	return make([]Datum, len)
 }
 
