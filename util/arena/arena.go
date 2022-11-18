@@ -17,8 +17,11 @@ package arena
 import (
 	"reflect"
 	"sync"
+	"time"
 	"unsafe"
 
+	"github.com/pingcap/tidb/kv"
+	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/types"
 )
 
@@ -159,13 +162,13 @@ type MemPoolSet struct {
 	mutex          sync.Mutex
 	ObjAllocator   *ObjectorAllocator
 	SliceAllocator *SliceAlloctor
-	// MapAlloctor    *MapAllocator
+	MapAlloctor    *MapAllocator
 }
 
 func (mps *MemPoolSet) ResetMemPoolSet() {
 	mps.ObjAllocator.Reset()
 	mps.SliceAllocator.Reset()
-	// mps.MapAlloctor.Reset()
+	mps.MapAlloctor.Reset()
 }
 
 func NewMemPoolSet() *MemPoolSet {
@@ -175,39 +178,46 @@ func NewMemPoolSet() *MemPoolSet {
 	sliceAllocator := &SliceAlloctor{}
 	sliceAllocator.InitSliceAlloctor()
 
-	// mapAllocator := &MapAllocator{}
-	// mapAllocator.InitMapAllocator()
+	mapAllocator := &MapAllocator{}
+	mapAllocator.InitMapAllocator()
 
 	return &MemPoolSet{
 		ObjAllocator:   objAllocator,
 		SliceAllocator: sliceAllocator,
-		// MapAlloctor:    mapAllocator,
+		MapAlloctor:    mapAllocator,
 	}
 }
 
-// map interface
-// map interface
-/*
+//****************************************************************************
+// map pool interface
+//*****************************************************************************
+// miscMapPool
 func (mps *MemPoolSet) GetIsolationReadEnginesMap() map[kv.StoreType]struct{} {
-	return mps.MapAlloctor.GetIsolationReadEnginesMap()
+	return mps.MapAlloctor.miscMaps.getIsolationReadEnginesMap()
 }
 
 func (mps *MemPoolSet) GetTableStatsMap() map[int64]interface{} {
-	return mps.MapAlloctor.GetTableStatsMap()
+	return mps.MapAlloctor.miscMaps.getTableStatsMap()
 }
 
 func (mps *MemPoolSet) GetLockTableIDsMap() map[int64]struct{} {
-	return mps.MapAlloctor.GetLockTableIDs()
+	return mps.MapAlloctor.miscMaps.getLockTableIDs()
 }
 
 func (mps *MemPoolSet) GetStatsLoadStatusMap() map[model.TableItemID]string {
-	return mps.MapAlloctor.GetStatsLoadStatusMap()
+	return mps.MapAlloctor.miscMaps.getStatsLoadStatusMap()
 }
 
 func (mps *MemPoolSet) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
-	return mps.MapAlloctor.GetTblInfo2UnionScanMap()
+	return mps.MapAlloctor.miscMaps.getTblInfo2UnionScanMap()
 }
-*/
+
+//**********************************************************************************
+// StringToDurationMapPool
+//**********************************************************************************
+func (mps *MemPoolSet) GetStringToDurationMap() map[string]time.Duration {
+	return mps.MapAlloctor.strToDurationMaps.GetOneMap()
+}
 
 // ObjAllocator interface
 // ObjAllocator interface
@@ -381,90 +391,113 @@ func (sa *SliceAlloctor) InitSliceAlloctor() {
 	*/
 }
 
-/*
-type StringToDurationMaps struct {
-	mutex    sync.Mutex
-	maps     []map[string]time.Duration
-	offset   int
-	capacity int
+type MapAllocator struct {
+	miscMaps          *miscSmallMapPool
+	strToDurationMaps *StringToDurationMapPool
 }
 
-func (m *StringToDurationMaps) Init() {
-	m.maps = make([]map[string]time.Duration, 10)
-	m.offset = 0
-	m.capacity = 10
+func (ma *MapAllocator) InitMapAllocator() {
+	ma.miscMaps = &miscSmallMapPool{}
+	ma.miscMaps.Init()
 
-	for i := 0; i < 10; i++ {
+	ma.strToDurationMaps = &StringToDurationMapPool{}
+	ma.strToDurationMaps.Init()
+}
+
+func (ma *MapAllocator) Reset() {
+	ma.miscMaps.reset()
+}
+
+type miscSmallMapPool struct {
+	// StmtCtxsmall maps
+	statsLoadStatus      map[model.TableItemID]string
+	lockTableIDs         map[int64]struct{}
+	tblInfo2UnionScan    map[*model.TableInfo]bool
+	tableStats           map[int64]interface{}
+	isolationReadEngines map[kv.StoreType]struct{}
+}
+
+func (m *miscSmallMapPool) Init() {
+	m.statsLoadStatus = make(map[model.TableItemID]string, 2)
+	m.lockTableIDs = make(map[int64]struct{})
+	m.tblInfo2UnionScan = make(map[*model.TableInfo]bool, 2)
+	m.tableStats = make(map[int64]interface{})
+	m.isolationReadEngines = make(map[kv.StoreType]struct{}, 3)
+}
+
+func (m *miscSmallMapPool) getTblInfo2UnionScanMap() map[*model.TableInfo]bool {
+	for k := range m.tblInfo2UnionScan {
+		delete(m.tblInfo2UnionScan, k)
+	}
+	return m.tblInfo2UnionScan
+}
+
+func (m *miscSmallMapPool) getStatsLoadStatusMap() map[model.TableItemID]string {
+	for k := range m.statsLoadStatus {
+		delete(m.statsLoadStatus, k)
+	}
+	return m.statsLoadStatus
+}
+
+func (m *miscSmallMapPool) getLockTableIDs() map[int64]struct{} {
+	for k := range m.lockTableIDs {
+		delete(m.lockTableIDs, k)
+	}
+	return m.lockTableIDs
+}
+
+func (m *miscSmallMapPool) getTableStatsMap() map[int64]interface{} {
+	for k := range m.tableStats {
+		delete(m.tableStats, k)
+	}
+	return m.tableStats
+}
+
+func (m *miscSmallMapPool) getIsolationReadEnginesMap() map[kv.StoreType]struct{} {
+	for k := range m.isolationReadEngines {
+		delete(m.isolationReadEngines, k)
+	}
+	return m.isolationReadEngines
+}
+
+func (ma *miscSmallMapPool) reset() {
+	// do nothing, when getting map, it will reset the map
+}
+
+type StringToDurationMapPool struct {
+	mutex sync.Mutex
+	maps  [32]map[string]time.Duration
+	inUse [32]bool
+}
+
+func (m *StringToDurationMapPool) Init() {
+	for i := 0; i < 32; i++ {
 		m.maps[i] = make(map[string]time.Duration)
 	}
 }
 
-func (m *StringToDurationMaps) GetOneMap() map[string]time.Duration {
+func (m *StringToDurationMapPool) GetOneMap() map[string]time.Duration {
+	var v map[string]time.Duration
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if m.offset >= m.capacity {
+	for i := 0; i < 32; i++ {
+		if m.inUse[i] {
+			continue
+		}
+		m.inUse[i] = true
+		v = m.maps[i]
+		break
+	}
+	m.mutex.Unlock()
+	if v == nil {
 		return make(map[string]time.Duration)
 	}
-	src := m.offset
-	m.offset++
-	return m.maps[src]
-}
 
-type MapAllocator struct {
-	// StmtCtxsmall maps
-	StatsLoadStatus      map[model.TableItemID]string
-	LockTableIDs         map[int64]struct{}
-	TblInfo2UnionScan    map[*model.TableInfo]bool
-	TableStats           map[int64]interface{}
-	isolationReadEngines map[kv.StoreType]struct{}
-
-	strToDurationMaps *StringToDurationMaps
-}
-
-func (ma *MapAllocator) InitMapAllocator() {
-	ma.StatsLoadStatus = make(map[model.TableItemID]string, 2)
-	ma.LockTableIDs = make(map[int64]struct{})
-	ma.TblInfo2UnionScan = make(map[*model.TableInfo]bool, 2)
-	ma.TableStats = make(map[int64]interface{})
-	ma.isolationReadEngines = make(map[kv.StoreType]struct{}, 3)
-}
-
-func (ma *MapAllocator) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
-	for k := range ma.TblInfo2UnionScan {
-		delete(ma.TblInfo2UnionScan, k)
+	for k := range v {
+		delete(v, k)
 	}
-	return ma.TblInfo2UnionScan
+	return v
 }
 
-func (ma *MapAllocator) GetStatsLoadStatusMap() map[model.TableItemID]string {
-	for k := range ma.StatsLoadStatus {
-		delete(ma.StatsLoadStatus, k)
-	}
-	return ma.StatsLoadStatus
-}
+/*
 
-func (ma *MapAllocator) GetLockTableIDs() map[int64]struct{} {
-	for k := range ma.LockTableIDs {
-		delete(ma.LockTableIDs, k)
-	}
-	return ma.LockTableIDs
-}
-
-func (ma *MapAllocator) GetTableStatsMap() map[int64]interface{} {
-	for k := range ma.TableStats {
-		delete(ma.TableStats, k)
-	}
-	return ma.TableStats
-}
-
-func (ma *MapAllocator) GetIsolationReadEnginesMap() map[kv.StoreType]struct{} {
-	for k := range ma.isolationReadEngines {
-		delete(ma.isolationReadEngines, k)
-	}
-	return ma.isolationReadEngines
-}
-
-func (ma *MapAllocator) Reset() {
-	// do nothing, when getting map, it will reset the map
-}
-*/
+ */

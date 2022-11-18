@@ -88,6 +88,8 @@ var (
 	executorCounterIndexMergeReaderExecutor = metrics.ExecutorCounter.WithLabelValues("IndexMergeReaderExecutor")
 )
 
+const sizeOfExecutorBuilder = int(unsafe.Sizeof(executorBuilder{}))
+
 // executorBuilder builds an Executor from a Plan.
 // The InfoSchema must not change during execution.
 type executorBuilder struct {
@@ -123,14 +125,29 @@ type CTEStorages struct {
 
 func newExecutorBuilder(ctx sessionctx.Context, is infoschema.InfoSchema, ti *TelemetryInfo) *executorBuilder {
 	txnManager := sessiontxn.GetTxnManager(ctx)
-	return &executorBuilder{
-		ctx:              ctx,
-		is:               is,
-		Ti:               ti,
-		isStaleness:      staleread.IsStmtStaleness(ctx),
-		txnScope:         txnManager.GetTxnScope(),
-		readReplicaScope: txnManager.GetReadReplicaScope(),
+	var eb *executorBuilder
+	ptr := ctx.GetSessionVars().GetObjectPointer(sizeOfExecutorBuilder, true)
+	if ptr != nil {
+		eb = (*executorBuilder)(ptr)
+		*eb = executorBuilder{
+			ctx:              ctx,
+			is:               is,
+			Ti:               ti,
+			isStaleness:      staleread.IsStmtStaleness(ctx),
+			txnScope:         txnManager.GetTxnScope(),
+			readReplicaScope: txnManager.GetReadReplicaScope(),
+		}
+	} else {
+		eb = &executorBuilder{
+			ctx:              ctx,
+			is:               is,
+			Ti:               ti,
+			isStaleness:      staleread.IsStmtStaleness(ctx),
+			txnScope:         txnManager.GetTxnScope(),
+			readReplicaScope: txnManager.GetReadReplicaScope(),
+		}
 	}
+	return eb
 }
 
 // MockPhysicalPlan is used to return a specified executor in when build.

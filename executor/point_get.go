@@ -17,6 +17,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -41,6 +42,8 @@ import (
 	"github.com/tikv/client-go/v2/txnkv/txnsnapshot"
 )
 
+const sizeOfPointGetExecutor = int(unsafe.Sizeof(PointGetExecutor{}))
+
 func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 	var err error
 	if err = b.validCanReadTemporaryOrCacheTable(p.TblInfo); err != nil {
@@ -55,13 +58,22 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 		}()
 	}
 
-	e := &PointGetExecutor{
-		baseExecutor:     newBaseExecutor(b.ctx, p.Schema(), p.ID()),
-		txnScope:         b.txnScope,
-		readReplicaScope: b.readReplicaScope,
-		isStaleness:      b.isStaleness,
+	e := (*PointGetExecutor)(b.ctx.GetSessionVars().GetObjectPointer(sizeOfPointGetExecutor, true))
+	if e != nil {
+		*e = PointGetExecutor{
+			baseExecutor:     newBaseExecutor(b.ctx, p.Schema(), p.ID()),
+			txnScope:         b.txnScope,
+			readReplicaScope: b.readReplicaScope,
+			isStaleness:      b.isStaleness,
+		}
+	} else {
+		e = &PointGetExecutor{
+			baseExecutor:     newBaseExecutor(b.ctx, p.Schema(), p.ID()),
+			txnScope:         b.txnScope,
+			readReplicaScope: b.readReplicaScope,
+			isStaleness:      b.isStaleness,
+		}
 	}
-
 	e.base().initCap = 1
 	e.base().maxChunkSize = 1
 	e.Init(p)

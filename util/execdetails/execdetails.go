@@ -23,12 +23,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/tipb/go-tipb"
 	"github.com/tikv/client-go/v2/util"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
+
+const SizeOfBasicRuntimeStats = (int)(unsafe.Sizeof(BasicRuntimeStats{}))
 
 // ExecDetails contains execution detail information.
 type ExecDetails struct {
