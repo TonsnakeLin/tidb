@@ -275,13 +275,7 @@ func newBaseExecutor(ctx sessionctx.Context, schema *expression.Schema, id int, 
 	}
 	if ctx.GetSessionVars().StmtCtx.RuntimeStatsColl != nil {
 		if e.id > 0 {
-			rs := (*execdetails.BasicRuntimeStats)(ctx.GetSessionVars().GetObjectPointer(execdetails.SizeOfBasicRuntimeStats, true))
-			if rs != nil {
-				*rs = execdetails.BasicRuntimeStats{}
-				e.runtimeStats = rs
-			} else {
-				e.runtimeStats = &execdetails.BasicRuntimeStats{}
-			}
+			e.runtimeStats = &execdetails.BasicRuntimeStats{}
 			e.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl.RegisterStats(id, e.runtimeStats)
 		}
 	}
@@ -1506,6 +1500,75 @@ func (e *TableDualExec) Next(ctx context.Context, req *chunk.Chunk) error {
 	}
 	e.numReturned = e.numDualRows
 	return nil
+}
+
+type SelectionExecPool struct {
+	instances [slotNum]*selectionExecInstance
+}
+
+func (p *SelectionExecPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &selectionExecInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *SelectionExecPool) GetObjectPointer(connID uint64, useCache bool) *SelectionExec {
+	if !useCache {
+		return &SelectionExec{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *SelectionExecPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type selectionExecInstance struct {
+	wrappers [NumPerSlot]*SelectionExecWrapper
+}
+
+func (ins *selectionExecInstance) Init() {
+	for i := 0; i < NumPerSlot; i++ {
+		e := &SelectionExec{}
+		w := &SelectionExecWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *selectionExecInstance) getObjectPointer(connID uint64) *SelectionExec {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &SelectionExec{}
+}
+
+func (ins *selectionExecInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type SelectionExecWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *SelectionExec
+}
+
+func (w *SelectionExecWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
 }
 
 // SelectionExec represents a filter executor.

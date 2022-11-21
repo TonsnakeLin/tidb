@@ -24,6 +24,29 @@ import (
 	"github.com/pingcap/tidb/parser/types"
 )
 
+const (
+	slotNum    = 64
+	numPerSlot = 4
+)
+
+var AstObjFactory *AstObjectFactory
+
+type AstObjectFactory struct {
+	ExecuteStmts *AstExecuteStmtPool
+}
+
+func init() {
+	_executeStmts := &AstExecuteStmtPool{}
+	_executeStmts.Init()
+	AstObjFactory = &AstObjectFactory{
+		ExecuteStmts: _executeStmts,
+	}
+}
+
+func (f *AstObjectFactory) Reset(connID uint64) {
+	f.ExecuteStmts.Reset(connID)
+}
+
 // Node is the basic element of the AST.
 // Interfaces embed Node should have 'Node' name suffix.
 type Node interface {

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/cznic/mathutil"
@@ -38,6 +39,80 @@ const (
 var (
 	TiDBStrictIntegerDisplayWidth bool
 )
+
+const (
+	slotNum    = 64
+	numPerSlot = 64
+)
+
+type FieldTypePool struct {
+	instances [slotNum]*fieldTypeInstance
+}
+
+func (p *FieldTypePool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &fieldTypeInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *FieldTypePool) GetObjectPointer(connID uint64, useCache bool) *FieldType {
+	if !useCache {
+		return &FieldType{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *FieldTypePool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type fieldTypeInstance struct {
+	wrappers [numPerSlot]*FieldTypeWrapper
+}
+
+func (ins *fieldTypeInstance) Init() {
+	for i := 0; i < numPerSlot; i++ {
+		e := &FieldType{}
+		w := &FieldTypeWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *fieldTypeInstance) getObjectPointer(connID uint64) *FieldType {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &FieldType{}
+}
+
+func (ins *fieldTypeInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type FieldTypeWrapper struct {
+	connID    uint64
+	inUse     int32
+	cachedObj *FieldType
+}
+
+func (w *FieldTypeWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
+}
 
 // FieldType records field type information.
 type FieldType struct {

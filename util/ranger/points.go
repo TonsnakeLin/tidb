@@ -340,8 +340,7 @@ func (r *builder) buildFromBinOp(expr *expression.ScalarFunction) []*point {
 	if ft.GetType() == mysql.TypeEnum && ft.EvalType() == types.ETString {
 		return handleEnumFromBinOp(r.sc, ft, value, op)
 	}
-	ptr1 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, false)
-	ptr2 := r.sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, false)
+
 	switch op {
 	case ast.NullEQ:
 		if value.IsNull() {
@@ -349,16 +348,10 @@ func (r *builder) buildFromBinOp(expr *expression.ScalarFunction) []*point {
 		}
 		fallthrough
 	case ast.EQ:
-		var startPoint, endPoint *point
-		if ptr1 != nil && ptr2 != nil {
-			startPoint = (*point)(ptr1)
-			endPoint = (*point)(ptr2)
-			*startPoint = point{value: value, start: true}
-			*endPoint = point{value: value}
-		} else {
-			startPoint = &point{value: value, start: true}
-			endPoint = &point{value: value}
-		}
+
+		startPoint := &point{value: value, start: true}
+		endPoint := &point{value: value}
+
 		return []*point{startPoint, endPoint}
 	case ast.NE:
 		startPoint1 := &point{value: types.MinNotNullDatum(), start: true}
@@ -375,28 +368,12 @@ func (r *builder) buildFromBinOp(expr *expression.ScalarFunction) []*point {
 		endPoint := &point{value: value}
 		return []*point{startPoint, endPoint}
 	case ast.GT:
-		var startPoint, endPoint *point
-		if ptr1 != nil && ptr2 != nil {
-			startPoint = (*point)(ptr1)
-			endPoint = (*point)(ptr2)
-			*startPoint = point{value: value, start: true, excl: true}
-			*endPoint = point{value: types.MaxValueDatum()}
-		} else {
-			startPoint = &point{value: value, start: true, excl: true}
-			endPoint = &point{value: types.MaxValueDatum()}
-		}
+		startPoint := &point{value: value, start: true, excl: true}
+		endPoint := &point{value: types.MaxValueDatum()}
 		return []*point{startPoint, endPoint}
 	case ast.GE:
-		var startPoint, endPoint *point
-		if ptr1 != nil && ptr2 != nil {
-			startPoint = (*point)(ptr1)
-			endPoint = (*point)(ptr2)
-			*startPoint = point{value: value, start: true}
-			*endPoint = point{value: types.MaxValueDatum()}
-		} else {
-			startPoint = &point{value: value, start: true}
-			endPoint = &point{value: types.MaxValueDatum()}
-		}
+		startPoint := &point{value: value, start: true}
+		endPoint := &point{value: types.MaxValueDatum()}
 		return []*point{startPoint, endPoint}
 	}
 	return nil

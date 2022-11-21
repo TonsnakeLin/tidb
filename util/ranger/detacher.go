@@ -276,14 +276,7 @@ func (d *rangeDetacher) detachCNFCondAndBuildRangeForIndex(conditions []expressi
 		err     error
 	)
 
-	var res *DetachRangeResult
-	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult, false)
-	if ptr != nil {
-		res = (*DetachRangeResult)(ptr)
-		*res = DetachRangeResult{}
-	} else {
-		res = &DetachRangeResult{}
-	}
+	res := &DetachRangeResult{}
 
 	accessConds, filterConds, newConditions, columnValues, emptyRange := ExtractEqAndInCondition(d.sctx, conditions, d.cols, d.lengths)
 	if emptyRange {
@@ -874,14 +867,7 @@ type rangeDetacher struct {
 }
 
 func (d *rangeDetacher) detachCondAndBuildRangeForCols() (*DetachRangeResult, error) {
-	var res *DetachRangeResult
-	ptr := d.sctx.GetSessionVars().GetObjectPointer(SizeOfDetachRangeResult, false)
-	if ptr != nil {
-		res = (*DetachRangeResult)(ptr)
-		*res = DetachRangeResult{}
-	} else {
-		res = &DetachRangeResult{}
-	}
+	res := &DetachRangeResult{}
 	newTpSlice := make([]*types.FieldType, 0, len(d.cols))
 	// newTpSlice := d.sctx.GetSessionVars().GetFldTypeSliceByCap(len(d.cols))
 	for _, col := range d.cols {

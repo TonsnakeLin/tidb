@@ -90,6 +90,75 @@ var (
 
 const sizeOfExecutorBuilder = int(unsafe.Sizeof(executorBuilder{}))
 
+type executorBuilderPool struct {
+	instances [slotNum]*executorBuilderInstance
+}
+
+func (p *executorBuilderPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &executorBuilderInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *executorBuilderPool) GetObjectPointer(connID uint64, useCache bool) *executorBuilder {
+	if !useCache {
+		return &executorBuilder{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *executorBuilderPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type executorBuilderInstance struct {
+	wrappers [NumPerSlot]*ExecutorBuilderWrapper
+}
+
+func (ins *executorBuilderInstance) Init() {
+	for i := 0; i < NumPerSlot; i++ {
+		e := &executorBuilder{}
+		w := &ExecutorBuilderWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *executorBuilderInstance) getObjectPointer(connID uint64) *executorBuilder {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &executorBuilder{}
+}
+
+func (ins *executorBuilderInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type ExecutorBuilderWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *executorBuilder
+}
+
+func (w *ExecutorBuilderWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
+}
+
 // executorBuilder builds an Executor from a Plan.
 // The InfoSchema must not change during execution.
 type executorBuilder struct {
@@ -125,27 +194,15 @@ type CTEStorages struct {
 
 func newExecutorBuilder(ctx sessionctx.Context, is infoschema.InfoSchema, ti *TelemetryInfo) *executorBuilder {
 	txnManager := sessiontxn.GetTxnManager(ctx)
-	var eb *executorBuilder
-	ptr := ctx.GetSessionVars().GetObjectPointer(sizeOfExecutorBuilder, true)
-	if ptr != nil {
-		eb = (*executorBuilder)(ptr)
-		*eb = executorBuilder{
-			ctx:              ctx,
-			is:               is,
-			Ti:               ti,
-			isStaleness:      staleread.IsStmtStaleness(ctx),
-			txnScope:         txnManager.GetTxnScope(),
-			readReplicaScope: txnManager.GetReadReplicaScope(),
-		}
-	} else {
-		eb = &executorBuilder{
-			ctx:              ctx,
-			is:               is,
-			Ti:               ti,
-			isStaleness:      staleread.IsStmtStaleness(ctx),
-			txnScope:         txnManager.GetTxnScope(),
-			readReplicaScope: txnManager.GetReadReplicaScope(),
-		}
+	sVars := ctx.GetSessionVars()
+	eb := ExecutorObjFactory.executorBuilders.GetObjectPointer(sVars.ConnectionID, sVars.IsClientConn)
+	*eb = executorBuilder{
+		ctx:              ctx,
+		is:               is,
+		Ti:               ti,
+		isStaleness:      staleread.IsStmtStaleness(ctx),
+		txnScope:         txnManager.GetTxnScope(),
+		readReplicaScope: txnManager.GetReadReplicaScope(),
 	}
 	return eb
 }
@@ -1641,19 +1698,12 @@ func (b *executorBuilder) buildSelection(v *plannercore.PhysicalSelection) Execu
 	if b.err != nil {
 		return nil
 	}
-	e := (*SelectionExec)(b.ctx.GetSessionVars().GetObjectPointer(sizeOfSelectionExec, true))
-	if e != nil {
-		*e = SelectionExec{
-			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
-			filters:      v.Conditions,
-		}
-	} else {
-		e = &SelectionExec{
-			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
-			filters:      v.Conditions,
-		}
+	sVars := b.ctx.GetSessionVars()
+	e := ExecutorObjFactory.selectionExecs.GetObjectPointer(sVars.ConnectionID, sVars.IsClientConn)
+	*e = SelectionExec{
+		baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
+		filters:      v.Conditions,
 	}
-
 	return e
 }
 
@@ -1662,21 +1712,13 @@ func (b *executorBuilder) buildProjection(v *plannercore.PhysicalProjection) Exe
 	if b.err != nil {
 		return nil
 	}
-	e := (*ProjectionExec)(b.ctx.GetSessionVars().GetObjectPointer(sizeOfProjectionExec, true))
-	if e != nil {
-		*e = ProjectionExec{
-			baseExecutor:     newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
-			numWorkers:       int64(b.ctx.GetSessionVars().ProjectionConcurrency()),
-			evaluatorSuit:    expression.NewEvaluatorSuite(v.Exprs, v.AvoidColumnEvaluator),
-			calculateNoDelay: v.CalculateNoDelay,
-		}
-	} else {
-		e = &ProjectionExec{
-			baseExecutor:     newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
-			numWorkers:       int64(b.ctx.GetSessionVars().ProjectionConcurrency()),
-			evaluatorSuit:    expression.NewEvaluatorSuite(v.Exprs, v.AvoidColumnEvaluator),
-			calculateNoDelay: v.CalculateNoDelay,
-		}
+	sVars := b.ctx.GetSessionVars()
+	e := ExecutorObjFactory.projectionExecs.GetObjectPointer(sVars.ConnectionID, sVars.IsClientConn)
+	*e = ProjectionExec{
+		baseExecutor:     newBaseExecutor(b.ctx, v.Schema(), v.ID(), childExec),
+		numWorkers:       int64(b.ctx.GetSessionVars().ProjectionConcurrency()),
+		evaluatorSuit:    expression.NewEvaluatorSuite(v.Exprs, v.AvoidColumnEvaluator),
+		calculateNoDelay: v.CalculateNoDelay,
 	}
 
 	// If the calculation row count for this Projection operator is smaller

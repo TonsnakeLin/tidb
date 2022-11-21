@@ -56,6 +56,75 @@ type projectionOutput struct {
 	done chan error
 }
 
+type ProjectionExecPool struct {
+	instances [slotNum]*projectionExecInstance
+}
+
+func (p *ProjectionExecPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &projectionExecInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *ProjectionExecPool) GetObjectPointer(connID uint64, useCache bool) *ProjectionExec {
+	if !useCache {
+		return &ProjectionExec{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *ProjectionExecPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type projectionExecInstance struct {
+	wrappers [NumPerSlot]*ProjectionExecWrapper
+}
+
+func (ins *projectionExecInstance) Init() {
+	for i := 0; i < NumPerSlot; i++ {
+		e := &ProjectionExec{}
+		w := &ProjectionExecWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *projectionExecInstance) getObjectPointer(connID uint64) *ProjectionExec {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &ProjectionExec{}
+}
+
+func (ins *projectionExecInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type ProjectionExecWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *ProjectionExec
+}
+
+func (w *ProjectionExecWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
+}
+
 // ProjectionExec implements the physical Projection Operator:
 // https://en.wikipedia.org/wiki/Projection_(relational_algebra)
 type ProjectionExec struct {

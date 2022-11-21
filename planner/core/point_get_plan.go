@@ -1200,27 +1200,14 @@ func partitionNameInSet(name model.CIStr, pnames []model.CIStr) bool {
 }
 
 func newPointGetPlan(ctx sessionctx.Context, dbName string, schema *expression.Schema, tbl *model.TableInfo, names []*types.FieldName) *PointGetPlan {
-	var p *PointGetPlan
-	ptr := ctx.GetSessionVars().GetObjectPointer(sizeOfPointGetPlan, false)
-	if ptr != nil {
-		p = (*PointGetPlan)(ptr)
-		*p = PointGetPlan{
-			basePlan:     newBasePlan(ctx, plancodec.TypePointGet, 0),
-			dbName:       dbName,
-			schema:       schema,
-			TblInfo:      tbl,
-			outputNames:  names,
-			LockWaitTime: ctx.GetSessionVars().LockWaitTimeout,
-		}
-	} else {
-		p = &PointGetPlan{
-			basePlan:     newBasePlan(ctx, plancodec.TypePointGet, 0),
-			dbName:       dbName,
-			schema:       schema,
-			TblInfo:      tbl,
-			outputNames:  names,
-			LockWaitTime: ctx.GetSessionVars().LockWaitTimeout,
-		}
+
+	p := &PointGetPlan{
+		basePlan:     newBasePlan(ctx, plancodec.TypePointGet, 0),
+		dbName:       dbName,
+		schema:       schema,
+		TblInfo:      tbl,
+		outputNames:  names,
+		LockWaitTime: ctx.GetSessionVars().LockWaitTimeout,
 	}
 
 	ctx.GetSessionVars().StmtCtx.Tables = []stmtctx.TableEntry{{DB: dbName, Table: tbl.Name.L}}
@@ -1259,7 +1246,6 @@ func buildSchemaFromFields(
 	*expression.Schema,
 	[]*types.FieldName,
 ) {
-	sessVars := ctx.GetSessionVars()
 	columns := make([]*expression.Column, 0, len(tbl.Columns)+1)
 	/*
 		if sessVars.GetExprCloumnSlice() != nil {
@@ -1316,24 +1302,13 @@ func buildSchemaFromFields(
 	}
 	// fields len is 0 for update and delete.
 	for _, col := range tbl.Columns {
-		var fldName *types.FieldName
-		ptr := sessVars.GetObjectPointer(types.SizeOfFieldName, false)
-		if ptr != nil {
-			fldName = (*types.FieldName)(ptr)
-			*fldName = types.FieldName{
-				DBName:      dbName,
-				OrigTblName: tbl.Name,
-				TblName:     tblName,
-				ColName:     col.Name,
-			}
-		} else {
-			fldName = &types.FieldName{
-				DBName:      dbName,
-				OrigTblName: tbl.Name,
-				TblName:     tblName,
-				ColName:     col.Name,
-			}
+		fldName := &types.FieldName{
+			DBName:      dbName,
+			OrigTblName: tbl.Name,
+			TblName:     tblName,
+			ColName:     col.Name,
 		}
+
 		names = append(names, fldName)
 		column := colInfoToColumn(ctx, col, len(columns))
 		columns = append(columns, column)
@@ -1760,27 +1735,13 @@ func colInfoToColumn(ctx sessionctx.Context, col *model.ColumnInfo, idx int) *ex
 			OrigName: col.Name.L,
 		}
 	}
-
-	ptr := ctx.GetSessionVars().GetObjectPointer(expression.SizeOfExprColumn, false)
-	if ptr == nil {
-		return &expression.Column{
-			RetType:  col.FieldType.Clone(),
-			ID:       col.ID,
-			UniqueID: int64(col.Offset),
-			Index:    idx,
-			OrigName: col.Name.L,
-		}
-	}
-
-	exprColumn := (*expression.Column)(ptr)
-	*exprColumn = expression.Column{
+	return &expression.Column{
 		RetType:  col.FieldType.Clone(),
 		ID:       col.ID,
 		UniqueID: int64(col.Offset),
 		Index:    idx,
 		OrigName: col.Name.L,
 	}
-	return exprColumn
 }
 
 func buildHandleCols(ctx sessionctx.Context, tbl *model.TableInfo, schema *expression.Schema) HandleCols {

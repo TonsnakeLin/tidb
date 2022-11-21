@@ -17,6 +17,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/pingcap/errors"
@@ -57,22 +58,13 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 			b.inSelectLockStmt = false
 		}()
 	}
-
-	e := (*PointGetExecutor)(b.ctx.GetSessionVars().GetObjectPointer(sizeOfPointGetExecutor, true))
-	if e != nil {
-		*e = PointGetExecutor{
-			baseExecutor:     newBaseExecutor(b.ctx, p.Schema(), p.ID()),
-			txnScope:         b.txnScope,
-			readReplicaScope: b.readReplicaScope,
-			isStaleness:      b.isStaleness,
-		}
-	} else {
-		e = &PointGetExecutor{
-			baseExecutor:     newBaseExecutor(b.ctx, p.Schema(), p.ID()),
-			txnScope:         b.txnScope,
-			readReplicaScope: b.readReplicaScope,
-			isStaleness:      b.isStaleness,
-		}
+	sVars := b.ctx.GetSessionVars()
+	e := ExecutorObjFactory.pointExecutors.GetObjectPointer(sVars.ConnectionID, sVars.IsClientConn)
+	*e = PointGetExecutor{
+		baseExecutor:     newBaseExecutor(b.ctx, p.Schema(), p.ID()),
+		txnScope:         b.txnScope,
+		readReplicaScope: b.readReplicaScope,
+		isStaleness:      b.isStaleness,
 	}
 	e.base().initCap = 1
 	e.base().maxChunkSize = 1
@@ -123,6 +115,75 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 	}
 
 	return e
+}
+
+type PointGetExecutorPool struct {
+	instances [slotNum]*pointGetExecutorInstance
+}
+
+func (p *PointGetExecutorPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &pointGetExecutorInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *PointGetExecutorPool) GetObjectPointer(connID uint64, useCache bool) *PointGetExecutor {
+	if !useCache {
+		return &PointGetExecutor{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *PointGetExecutorPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type pointGetExecutorInstance struct {
+	wrappers [NumPerSlot]*PointGetExecutorWrapper
+}
+
+func (ins *pointGetExecutorInstance) Init() {
+	for i := 0; i < NumPerSlot; i++ {
+		e := &PointGetExecutor{}
+		w := &PointGetExecutorWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *pointGetExecutorInstance) getObjectPointer(connID uint64) *PointGetExecutor {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &PointGetExecutor{}
+}
+
+func (ins *pointGetExecutorInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type PointGetExecutorWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *PointGetExecutor
+}
+
+func (w *PointGetExecutorWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
 }
 
 // PointGetExecutor executes point select query.

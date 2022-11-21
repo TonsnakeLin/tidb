@@ -37,8 +37,18 @@ const ErrorLength = 0
 
 const SizeOfFieldType = int(unsafe.Sizeof(FieldType{}))
 
+var TypesObjFactory *TypesObjectFactory
+
 // FieldType records field type information.
 type FieldType = ast.FieldType
+
+type TypesObjectFactory struct {
+	FldTypes *ast.FieldTypePool
+}
+
+func (f *TypesObjectFactory) Reset(connID uint64) {
+	f.FldTypes.Reset(connID)
+}
 
 type FieldTypeSlicePool struct {
 	mutex    sync.Mutex

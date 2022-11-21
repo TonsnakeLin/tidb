@@ -956,15 +956,9 @@ func (b *PlanBuilder) buildExecute(ctx context.Context, v *ast.ExecuteStmt) (Pla
 	if err != nil {
 		return nil, err
 	}
-	// exe := &Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
-	var exe *Execute
-	ptr := sessVars.GetObjectPointer(sizeOfExecute, false)
-	if ptr != nil {
-		exe = (*Execute)(ptr)
-		*exe = Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
-	} else {
-		exe = &Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
-	}
+
+	exe := &Execute{Name: v.Name, Params: vars, PrepStmt: prepStmt}
+
 	if v.BinaryArgs != nil {
 		exe.Params = v.BinaryArgs.([]expression.Expression)
 	}

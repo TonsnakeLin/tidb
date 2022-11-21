@@ -35,6 +35,14 @@ var _ Processor = &staleReadProcessor{}
 // StalenessTSEvaluator is a function to get staleness ts
 type StalenessTSEvaluator func(sctx sessionctx.Context) (uint64, error)
 
+type SessionTxnstaleReadObjectFactory struct {
+	staleReadProcessorCache *staleReadProcessor
+}
+
+func (f *SessionTxnstaleReadObjectFactory) Init() {
+	f.staleReadProcessorCache = &staleReadProcessor{}
+}
+
 // Processor is an interface used to process stale read
 type Processor interface {
 	// IsStaleness indicates that whether we should use the staleness
@@ -151,14 +159,7 @@ type staleReadProcessor struct {
 
 // NewStaleReadProcessor creates a new stale read processor
 func NewStaleReadProcessor(ctx context.Context, sctx sessionctx.Context) Processor {
-	var p *staleReadProcessor
-	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfStaleReadProcessor, false)
-	if ptr != nil {
-		p = (*staleReadProcessor)(ptr)
-		*p = staleReadProcessor{}
-	} else {
-		p = &staleReadProcessor{}
-	}
+	p := &staleReadProcessor{}
 	p.init(ctx, sctx)
 	return p
 }

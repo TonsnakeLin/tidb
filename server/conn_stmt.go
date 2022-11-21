@@ -267,25 +267,11 @@ func (cc *clientConn) executePreparedStmtAndWriteResult(ctx context.Context, stm
 	if err != nil {
 		return true, errors.Annotate(err, cc.preparedStmt2String(uint32(stmt.ID())))
 	}
-	/*
-		execStmt := &ast.ExecuteStmt{
-			BinaryArgs: args,
-			PrepStmt:   prepStmt,
-		}
-	*/
-	var execStmt *ast.ExecuteStmt
-	ptr := (&cc.ctx).GetSessionVars().GetObjectPointer(sizeOfExecuteStmt, true)
-	if ptr != nil {
-		execStmt = (*ast.ExecuteStmt)(ptr)
-		*execStmt = ast.ExecuteStmt{
-			BinaryArgs: args,
-			PrepStmt:   prepStmt,
-		}
-	} else {
-		execStmt = &ast.ExecuteStmt{
-			BinaryArgs: args,
-			PrepStmt:   prepStmt,
-		}
+	sVars := (&cc.ctx).GetSessionVars()
+	execStmt := ast.AstObjFactory.ExecuteStmts.GetObjectPointer(sVars.ConnectionID, sVars.IsClientConn)
+	*execStmt = ast.ExecuteStmt{
+		BinaryArgs: args,
+		PrepStmt:   prepStmt,
 	}
 	rs, err := (&cc.ctx).ExecuteStmt(ctx, execStmt)
 	if err != nil {
@@ -648,31 +634,13 @@ func parseExecArgs(vars *variable.SessionVars, params []expression.Expression, b
 		}
 	}
 
-	var ft *types.FieldType
-	var constExpr *expression.Constant
 	for i := range params {
-
-		ptr1 := vars.GetObjectPointer(types.SizeOfFieldType, true)
-		ptr2 := vars.GetObjectPointer(expression.SizeOfConstantExpr, true)
-		if ptr1 != nil && ptr2 != nil {
-			ft = (*types.FieldType)(ptr1)
-			*ft = types.FieldType{}
-			types.DefaultParamTypeForValue(args[i].GetValue(), ft)
-
-			constExpr = (*expression.Constant)(ptr2)
-			*constExpr = expression.Constant{Value: args[i], RetType: ft}
-			params[i] = constExpr
-		} else {
-			ft = new(types.FieldType)
-			types.DefaultParamTypeForValue(args[i].GetValue(), ft)
-			params[i] = &expression.Constant{Value: args[i], RetType: ft}
-		}
-
-		/*
-			ft := new(types.FieldType)
-			types.DefaultParamTypeForValue(args[i].GetValue(), ft)
-			params[i] = &expression.Constant{Value: args[i], RetType: ft}
-		*/
+		ft := types.TypesObjFactory.FldTypes.GetObjectPointer(vars.ConnectionID, vars.IsClientConn)
+		constExpr := expression.ExpressionObjFactory.ExprConstants.GetObjectPointer(vars.ConnectionID, vars.IsClientConn)
+		*ft = types.FieldType{}
+		types.DefaultParamTypeForValue(args[i].GetValue(), ft)
+		*constExpr = expression.Constant{Value: args[i], RetType: ft}
+		params[i] = constExpr
 	}
 	return
 }

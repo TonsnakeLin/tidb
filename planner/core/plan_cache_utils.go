@@ -307,43 +307,22 @@ func NewPlanCacheKey(sessionVars *variable.SessionVars, stmtText, stmtDB string,
 			hashValue = sessionVars.MixedMemPool.GetByteSliceByCap(256)
 		}
 	*/
-	ptr := sessionVars.GetObjectPointer(sizeOfPlanCacheKey, false)
-	if ptr != nil {
-		key = (*planCacheKey)(ptr)
-		*key = planCacheKey{
-			database:                 stmtDB,
-			connID:                   sessionVars.ConnectionID,
-			stmtText:                 stmtText,
-			schemaVersion:            schemaVersion,
-			lastUpdatedSchemaVersion: lastUpdatedSchemaVersion,
-			sqlMode:                  sessionVars.SQLMode,
-			timezoneOffset:           timezoneOffset,
-			isolationReadEngines:     make(map[kv.StoreType]struct{}),
-			// isolationReadEngines: engineMap,
-			selectLimit:        sessionVars.SelectLimit,
-			bindSQL:            bindSQL,
-			inRestrictedSQL:    sessionVars.InRestrictedSQL,
-			restrictedReadOnly: variable.RestrictedReadOnly.Load(),
-			TiDBSuperReadOnly:  variable.VarTiDBSuperReadOnly.Load(),
-			// hash:                 hashValue,
-		}
-	} else {
-		key = &planCacheKey{
-			database:                 stmtDB,
-			connID:                   sessionVars.ConnectionID,
-			stmtText:                 stmtText,
-			schemaVersion:            schemaVersion,
-			lastUpdatedSchemaVersion: lastUpdatedSchemaVersion,
-			sqlMode:                  sessionVars.SQLMode,
-			timezoneOffset:           timezoneOffset,
-			isolationReadEngines:     make(map[kv.StoreType]struct{}),
-			// isolationReadEngines: engineMap,
-			selectLimit:        sessionVars.SelectLimit,
-			bindSQL:            bindSQL,
-			inRestrictedSQL:    sessionVars.InRestrictedSQL,
-			restrictedReadOnly: variable.RestrictedReadOnly.Load(),
-			TiDBSuperReadOnly:  variable.VarTiDBSuperReadOnly.Load(),
-		}
+
+	key = &planCacheKey{
+		database:                 stmtDB,
+		connID:                   sessionVars.ConnectionID,
+		stmtText:                 stmtText,
+		schemaVersion:            schemaVersion,
+		lastUpdatedSchemaVersion: lastUpdatedSchemaVersion,
+		sqlMode:                  sessionVars.SQLMode,
+		timezoneOffset:           timezoneOffset,
+		isolationReadEngines:     make(map[kv.StoreType]struct{}),
+		// isolationReadEngines: engineMap,
+		selectLimit:        sessionVars.SelectLimit,
+		bindSQL:            bindSQL,
+		inRestrictedSQL:    sessionVars.InRestrictedSQL,
+		restrictedReadOnly: variable.RestrictedReadOnly.Load(),
+		TiDBSuperReadOnly:  variable.VarTiDBSuperReadOnly.Load(),
 	}
 
 	for k, v := range sessionVars.IsolationReadEngines {

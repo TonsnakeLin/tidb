@@ -130,33 +130,17 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (_ *ExecS
 		lowerPriority = needLowerPriority(finalPlan)
 	}
 	stmtCtx.SetPlan(finalPlan)
-	var stmt *ExecStmt
-	ptr := sessVars.GetObjectPointer(sizeOfExecStmt, true)
-	if ptr != nil {
-		stmt = (*ExecStmt)(ptr)
-		*stmt = ExecStmt{
-			GoCtx:         ctx,
-			InfoSchema:    is,
-			Plan:          finalPlan,
-			LowerPriority: lowerPriority,
-			Text:          stmtNode.Text(),
-			StmtNode:      stmtNode,
-			Ctx:           c.Ctx,
-			OutputNames:   names,
-			Ti:            &TelemetryInfo{},
-		}
-	} else {
-		stmt = &ExecStmt{
-			GoCtx:         ctx,
-			InfoSchema:    is,
-			Plan:          finalPlan,
-			LowerPriority: lowerPriority,
-			Text:          stmtNode.Text(),
-			StmtNode:      stmtNode,
-			Ctx:           c.Ctx,
-			OutputNames:   names,
-			Ti:            &TelemetryInfo{},
-		}
+	stmt := ExecutorObjFactory.execStmts.GetObjectPointer(sessVars.ConnectionID, sessVars.IsClientConn)
+	*stmt = ExecStmt{
+		GoCtx:         ctx,
+		InfoSchema:    is,
+		Plan:          finalPlan,
+		LowerPriority: lowerPriority,
+		Text:          stmtNode.Text(),
+		StmtNode:      stmtNode,
+		Ctx:           c.Ctx,
+		OutputNames:   names,
+		Ti:            &TelemetryInfo{},
 	}
 
 	if pointPlanShortPathOK {

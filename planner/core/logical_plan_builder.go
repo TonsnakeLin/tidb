@@ -4555,45 +4555,24 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 		}
 	*/
 
-	ptr := sessionVars.GetObjectPointer(SizeOfDataSource, false)
-	if ptr != nil {
-		ds = (*DataSource)(ptr)
-		*ds = DataSource{
-			DBName:              dbName,
-			TableAsName:         asName,
-			table:               tbl,
-			tableInfo:           tableInfo,
-			physicalTableID:     tableInfo.ID,
-			astIndexHints:       tn.IndexHints,
-			IndexHints:          b.TableHints().indexHintList,
-			indexMergeHints:     indexMergeHints,
-			possibleAccessPaths: possiblePaths,
-			Columns:             modelColumns,
-			partitionNames:      tn.PartitionNames,
-			TblCols:             tblCols,
-			preferPartitions:    make(map[int][]model.CIStr),
-			is:                  b.is,
-			isForUpdateRead:     b.isForUpdateRead,
-		}
-	} else {
-		ds = &DataSource{
-			DBName:              dbName,
-			TableAsName:         asName,
-			table:               tbl,
-			tableInfo:           tableInfo,
-			physicalTableID:     tableInfo.ID,
-			astIndexHints:       tn.IndexHints,
-			IndexHints:          b.TableHints().indexHintList,
-			indexMergeHints:     indexMergeHints,
-			possibleAccessPaths: possiblePaths,
-			Columns:             modelColumns,
-			partitionNames:      tn.PartitionNames,
-			TblCols:             tblCols,
-			preferPartitions:    make(map[int][]model.CIStr),
-			is:                  b.is,
-			isForUpdateRead:     b.isForUpdateRead,
-		}
+	ds = &DataSource{
+		DBName:              dbName,
+		TableAsName:         asName,
+		table:               tbl,
+		tableInfo:           tableInfo,
+		physicalTableID:     tableInfo.ID,
+		astIndexHints:       tn.IndexHints,
+		IndexHints:          b.TableHints().indexHintList,
+		indexMergeHints:     indexMergeHints,
+		possibleAccessPaths: possiblePaths,
+		Columns:             modelColumns,
+		partitionNames:      tn.PartitionNames,
+		TblCols:             tblCols,
+		preferPartitions:    make(map[int][]model.CIStr),
+		is:                  b.is,
+		isForUpdateRead:     b.isForUpdateRead,
 	}
+
 	ds.Init(b.ctx, b.getSelectOffset())
 	var handleCols HandleCols
 	var exprColumns []*expression.Column
@@ -4611,51 +4590,27 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 	// names := sessionVars.GetFldNameSliceByCap(len(columns))
 	for i, col := range columns {
 		ds.Columns = append(ds.Columns, col.ToInfo())
-		var fldNames *types.FieldName
-		ptr := sessionVars.GetObjectPointer(types.SizeOfFieldName, false)
-		if ptr != nil {
-			fldNames = (*types.FieldName)(ptr)
-			*fldNames = types.FieldName{
-				DBName:      dbName,
-				TblName:     tableInfo.Name,
-				ColName:     col.Name,
-				OrigTblName: tableInfo.Name,
-				OrigColName: col.Name,
-				// For update statement and delete statement, internal version should see the special middle state column, while user doesn't.
-				NotExplicitUsable: col.State != model.StatePublic,
-			}
-		} else {
-			fldNames = &types.FieldName{
-				DBName:      dbName,
-				TblName:     tableInfo.Name,
-				ColName:     col.Name,
-				OrigTblName: tableInfo.Name,
-				OrigColName: col.Name,
-				// For update statement and delete statement, internal version should see the special middle state column, while user doesn't.
-				NotExplicitUsable: col.State != model.StatePublic,
-			}
+
+		fldNames := &types.FieldName{
+			DBName:      dbName,
+			TblName:     tableInfo.Name,
+			ColName:     col.Name,
+			OrigTblName: tableInfo.Name,
+			OrigColName: col.Name,
+			// For update statement and delete statement, internal version should see the special middle state column, while user doesn't.
+			NotExplicitUsable: col.State != model.StatePublic,
 		}
+
 		names = append(names, fldNames)
-		var newCol *expression.Column
-		ptr = sessionVars.GetObjectPointer(types.SizeOfFieldName, false)
-		if ptr != nil {
-			newCol = (*expression.Column)(ptr)
-			*newCol = expression.Column{
-				UniqueID: sessionVars.AllocPlanColumnID(),
-				ID:       col.ID,
-				RetType:  col.FieldType.Clone(),
-				OrigName: names[i].String(),
-				IsHidden: col.Hidden,
-			}
-		} else {
-			newCol = &expression.Column{
-				UniqueID: sessionVars.AllocPlanColumnID(),
-				ID:       col.ID,
-				RetType:  col.FieldType.Clone(),
-				OrigName: names[i].String(),
-				IsHidden: col.Hidden,
-			}
+
+		newCol := &expression.Column{
+			UniqueID: sessionVars.AllocPlanColumnID(),
+			ID:       col.ID,
+			RetType:  col.FieldType.Clone(),
+			OrigName: names[i].String(),
+			IsHidden: col.Hidden,
 		}
+
 		if col.IsPKHandleColumn(tableInfo) {
 			handleCols = &IntHandleCols{col: newCol}
 		}

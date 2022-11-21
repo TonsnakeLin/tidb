@@ -153,6 +153,97 @@ var (
 )
 
 const sizeOfExecStmtResult = int(unsafe.Sizeof(execStmtResult{}))
+const (
+	slotNum    = 64
+	numPerSlot = 4
+)
+
+var SessionObjFactory *SessionObjectFactory
+
+type SessionObjectFactory struct {
+	execStmtResults *execStmtResultPool
+}
+
+func init() {
+	_execStmtResults := &execStmtResultPool{}
+	_execStmtResults.Init()
+	SessionObjFactory = &SessionObjectFactory{
+		execStmtResults: _execStmtResults,
+	}
+}
+
+func (f *SessionObjectFactory) Reset(connID uint64) {
+	f.execStmtResults.Reset(connID)
+}
+
+type execStmtResultPool struct {
+	instances [slotNum]*execStmtResultInstance
+}
+
+func (p *execStmtResultPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &execStmtResultInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *execStmtResultPool) GetObjectPointer(connID uint64, useCache bool) *execStmtResult {
+	if !useCache {
+		return &execStmtResult{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *execStmtResultPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type execStmtResultInstance struct {
+	wrappers [numPerSlot]*execStmtResultWrapper
+}
+
+func (ins *execStmtResultInstance) Init() {
+	for i := 0; i < numPerSlot; i++ {
+		e := &execStmtResult{}
+		w := &execStmtResultWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *execStmtResultInstance) getObjectPointer(connID uint64) *execStmtResult {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &execStmtResult{}
+}
+
+func (ins *execStmtResultInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type execStmtResultWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *execStmtResult
+}
+
+func (w *execStmtResultWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
+}
 
 // Session context, it is consistent with the lifecycle of a client connection.
 type Session interface {
@@ -2353,21 +2444,11 @@ func runStmt(ctx context.Context, se *session, s sqlexec.Statement) (rs sqlexec.
 				}
 			}
 		}
-		var execRes *execStmtResult
-		ptr := sessVars.GetObjectPointer(sizeOfExecStmtResult, true)
-		if ptr != nil {
-			execRes = (*execStmtResult)(ptr)
-			*execRes = execStmtResult{
-				RecordSet: rs,
-				sql:       s,
-				se:        se,
-			}
-		} else {
-			execRes = &execStmtResult{
-				RecordSet: rs,
-				sql:       s,
-				se:        se,
-			}
+		execRes := SessionObjFactory.execStmtResults.GetObjectPointer(sessVars.ConnectionID, sessVars.IsClientConn)
+		*execRes = execStmtResult{
+			RecordSet: rs,
+			sql:       s,
+			se:        se,
 		}
 		return execRes, err
 	}

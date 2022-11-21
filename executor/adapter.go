@@ -84,11 +84,133 @@ var (
 	totalQueryProcHistogramInternal = metrics.TotalQueryProcHistogram.WithLabelValues(metrics.LblInternal)
 	totalCopProcHistogramInternal   = metrics.TotalCopProcHistogram.WithLabelValues(metrics.LblInternal)
 	totalCopWaitHistogramInternal   = metrics.TotalCopWaitHistogram.WithLabelValues(metrics.LblInternal)
+
+	ExecutorObjFactory *ExcutorObjectFactory
 )
+
+func init() {
+	_execStmts := &ExecStmtPool{}
+	_execStmts.Init()
+
+	_recordSets := &recordSetPool{}
+	_recordSets.Init()
+
+	_executorBuilders := &executorBuilderPool{}
+	_executorBuilders.Init()
+
+	_selectionExecs := &SelectionExecPool{}
+	_selectionExecs.Init()
+
+	_projectionExecs := &ProjectionExecPool{}
+	_projectionExecs.Init()
+
+	_pointExecutors := &PointGetExecutorPool{}
+	_pointExecutors.Init()
+
+	ExecutorObjFactory = &ExcutorObjectFactory{
+		execStmts:        _execStmts,
+		recordSets:       _recordSets,
+		executorBuilders: _executorBuilders,
+		selectionExecs:   _selectionExecs,
+		projectionExecs:  _projectionExecs,
+		pointExecutors:   _pointExecutors,
+	}
+}
+
+type ExcutorObjectFactory struct {
+	execStmts  *ExecStmtPool
+	recordSets *recordSetPool
+
+	executorBuilders *executorBuilderPool
+	selectionExecs   *SelectionExecPool
+	projectionExecs  *ProjectionExecPool
+	pointExecutors   *PointGetExecutorPool
+}
+
+func (f *ExcutorObjectFactory) Reset(connID uint64) {
+	f.execStmts.Reset(connID)
+	f.recordSets.Reset(connID)
+	f.executorBuilders.Reset(connID)
+	f.selectionExecs.Reset(connID)
+	f.projectionExecs.Reset(connID)
+	f.pointExecutors.Reset(connID)
+}
+
+const slotNum = 64
+const NumPerSlot = 4
 
 // processinfoSetter is the interface use to set current running process info.
 type processinfoSetter interface {
 	SetProcessInfo(string, time.Time, byte, uint64)
+}
+
+type recordSetPool struct {
+	instances [slotNum]*recordSetInstance
+}
+
+func (p *recordSetPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &recordSetInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *recordSetPool) GetObjectPointer(connID uint64, useCache bool) *recordSet {
+	if !useCache {
+		return &recordSet{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *recordSetPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type recordSetInstance struct {
+	wrappers [NumPerSlot]*RecordSetWrapper
+}
+
+func (ins *recordSetInstance) Init() {
+	for i := 0; i < NumPerSlot; i++ {
+		e := &recordSet{}
+		w := &RecordSetWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *recordSetInstance) getObjectPointer(connID uint64) *recordSet {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &recordSet{}
+}
+
+func (ins *recordSetInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type RecordSetWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *recordSet
+}
+
+func (w *RecordSetWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
 }
 
 // recordSet wraps an executor, implements sqlexec.RecordSet interface
@@ -231,6 +353,75 @@ type AccountLockTelemetryInfo struct {
 	UnlockUser int64
 	// The number of CREATE/ALTER USER statements
 	CreateOrAlterUser int64
+}
+
+type ExecStmtPool struct {
+	ExecStmts [slotNum]*ExecStmtInstances
+}
+
+func (p *ExecStmtPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &ExecStmtInstances{}
+		ins.Init()
+		p.ExecStmts[i] = ins
+	}
+}
+
+func (p *ExecStmtPool) GetObjectPointer(connID uint64, useCache bool) *ExecStmt {
+	if !useCache {
+		return &ExecStmt{}
+	}
+	ins := p.ExecStmts[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *ExecStmtPool) Reset(connID uint64) {
+	ins := p.ExecStmts[connID%slotNum]
+	ins.Reset(connID)
+}
+
+type ExecStmtInstances struct {
+	ExecStmtWrappers [NumPerSlot]*ExecStmtWrapper
+}
+
+func (ins *ExecStmtInstances) Init() {
+	for i := 0; i < NumPerSlot; i++ {
+		e := &ExecStmt{}
+		ew := &ExecStmtWrapper{
+			execStmt: e,
+		}
+		ins.ExecStmtWrappers[i] = ew
+	}
+}
+
+func (ins *ExecStmtInstances) getObjectPointer(connID uint64) *ExecStmt {
+	for _, ew := range ins.ExecStmtWrappers {
+		if atomic.CompareAndSwapInt32(&ew.inUse, 0, 1) {
+			atomic.StoreUint64(&ew.connID, connID)
+			return ew.execStmt
+		}
+	}
+
+	return &ExecStmt{}
+}
+
+func (ins *ExecStmtInstances) Reset(connID uint64) {
+	for _, ew := range ins.ExecStmtWrappers {
+		if atomic.LoadUint64(&ew.connID) == connID {
+			ew.Reset()
+		}
+	}
+}
+
+type ExecStmtWrapper struct {
+	inUse    int32
+	connID   uint64
+	execStmt *ExecStmt
+}
+
+func (e *ExecStmtWrapper) Reset() {
+	atomic.StoreUint64(&e.connID, 0)
+	atomic.StoreInt32(&e.inUse, 0)
 }
 
 // ExecStmt implements the sqlexec.Statement interface, it builds a planner.Plan to an sqlexec.Statement.
@@ -560,21 +751,12 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 		txnStartTS = txn.StartTS()
 	}
 
-	var rSet *recordSet
-	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRecordSet, true)
-	if ptr != nil {
-		rSet = (*recordSet)(ptr)
-		*rSet = recordSet{
-			executor:   e,
-			stmt:       a,
-			txnStartTS: txnStartTS,
-		}
-	} else {
-		rSet = &recordSet{
-			executor:   e,
-			stmt:       a,
-			txnStartTS: txnStartTS,
-		}
+	sVars := sctx.GetSessionVars()
+	rSet := ExecutorObjFactory.recordSets.GetObjectPointer(sVars.ConnectionID, sVars.IsClientConn)
+	*rSet = recordSet{
+		executor:   e,
+		stmt:       a,
+		txnStartTS: txnStartTS,
 	}
 	return rSet, nil
 }

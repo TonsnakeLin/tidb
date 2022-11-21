@@ -28,7 +28,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/config"
@@ -690,6 +689,7 @@ type SessionVars struct {
 
 	// ConnectionID is the connection id of the current session.
 	ConnectionID uint64
+	IsClientConn bool
 
 	// PlanID is the unique id of logical and physical plan.
 	PlanID int
@@ -1313,13 +1313,6 @@ type SessionVars struct {
 
 func (s *SessionVars) SetMixedMemPool(poolSet *arena.MemPoolSet) {
 	s.MixedMemPool = poolSet
-}
-
-func (s *SessionVars) GetObjectPointer(len int, useCache bool) unsafe.Pointer {
-	if s.MixedMemPool == nil {
-		return nil
-	}
-	return s.MixedMemPool.GetObjectPointer(len, useCache)
 }
 
 // GetNewChunkWithCapacity Attempt to request memory from the chunk pool

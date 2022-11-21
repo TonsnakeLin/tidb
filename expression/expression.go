@@ -51,9 +51,98 @@ const (
 	parameterFlag      byte = 4
 	sliceNum           int  = 16
 	exprNumPerSlice    int  = 64
+
+	slotNum    = 64
+	numPerSlot = 64
 )
 
-// var GlobalExprSlicePool ExpressionSlicePool
+var ExpressionObjFactory *ExpressionObjectFactory
+
+func init() {
+	_ExprConstants := &ExprConstantPool{}
+	_ExprConstants.Init()
+
+	ExpressionObjFactory = &ExpressionObjectFactory{
+		ExprConstants: _ExprConstants,
+	}
+}
+
+type ExpressionObjectFactory struct {
+	ExprConstants *ExprConstantPool
+}
+
+func (f *ExpressionObjectFactory) Reset(connID uint64) {
+	f.ExprConstants.Reset(connID)
+}
+
+type ExprConstantPool struct {
+	instances [slotNum]*exprConstantInstance
+}
+
+func (p *ExprConstantPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &exprConstantInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *ExprConstantPool) GetObjectPointer(connID uint64, useCache bool) *Constant {
+	if !useCache {
+		return &Constant{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *ExprConstantPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type exprConstantInstance struct {
+	wrappers [numPerSlot]*ExprConstantWrapper
+}
+
+func (ins *exprConstantInstance) Init() {
+	for i := 0; i < numPerSlot; i++ {
+		e := &Constant{}
+		w := &ExprConstantWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *exprConstantInstance) getObjectPointer(connID uint64) *Constant {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &Constant{}
+}
+
+func (ins *exprConstantInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type ExprConstantWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *Constant
+}
+
+func (w *ExprConstantWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
+}
 
 type ExpressionSlicePool struct {
 	mutex sync.Mutex

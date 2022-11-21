@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/parser/auth"
@@ -79,6 +80,75 @@ const (
 	Optimistic  = "OPTIMISTIC"
 	Pessimistic = "PESSIMISTIC"
 )
+
+type AstExecuteStmtPool struct {
+	instances [slotNum]*executeStmtInstance
+}
+
+func (p *AstExecuteStmtPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &executeStmtInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *AstExecuteStmtPool) GetObjectPointer(connID uint64, useCache bool) *ExecuteStmt {
+	if !useCache {
+		return &ExecuteStmt{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *AstExecuteStmtPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type executeStmtInstance struct {
+	wrappers [numPerSlot]*ExecuteStmtWrapper
+}
+
+func (ins *executeStmtInstance) Init() {
+	for i := 0; i < numPerSlot; i++ {
+		e := &ExecuteStmt{}
+		w := &ExecuteStmtWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *executeStmtInstance) getObjectPointer(connID uint64) *ExecuteStmt {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &ExecuteStmt{}
+}
+
+func (ins *executeStmtInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type ExecuteStmtWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *ExecuteStmt
+}
+
+func (w *ExecuteStmtWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
+}
 
 // TypeOpt is used for parsing data type option from SQL.
 type TypeOpt struct {

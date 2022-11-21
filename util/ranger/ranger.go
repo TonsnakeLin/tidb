@@ -148,25 +148,12 @@ func points2Ranges(sctx sessionctx.Context, rangePoints []*point, tp *types.Fiel
 	*/
 	for i := 0; i < len(convertedPoints); i += 2 {
 		startPoint, endPoint := convertedPoints[i], convertedPoints[i+1]
-		var ran *Range
-		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange, false)
-		if ptr != nil {
-			ran = (*Range)(ptr)
-			*ran = Range{
-				LowVal:      []types.Datum{startPoint.value},
-				LowExclude:  startPoint.excl,
-				HighVal:     []types.Datum{endPoint.value},
-				HighExclude: endPoint.excl,
-				Collators:   []collate.Collator{collate.GetCollator(tp.GetCollate())},
-			}
-		} else {
-			ran = &Range{
-				LowVal:      []types.Datum{startPoint.value},
-				LowExclude:  startPoint.excl,
-				HighVal:     []types.Datum{endPoint.value},
-				HighExclude: endPoint.excl,
-				Collators:   []collate.Collator{collate.GetCollator(tp.GetCollate())},
-			}
+		ran := &Range{
+			LowVal:      []types.Datum{startPoint.value},
+			LowExclude:  startPoint.excl,
+			HighVal:     []types.Datum{endPoint.value},
+			HighExclude: endPoint.excl,
+			Collators:   []collate.Collator{collate.GetCollator(tp.GetCollate())},
 		}
 		ranges = append(ranges, ran)
 	}
@@ -221,15 +208,10 @@ func convertPoint(sctx sessionctx.Context, ipoint *point, tp *types.FieldType) (
 	if err != nil {
 		return ipoint, errors.Trace(err)
 	}
-	var npoint *point
-	ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfPoint, false)
+
 	// npoint := point.Clone(casted)
-	if ptr != nil {
-		npoint = (*point)(ptr)
-		*npoint = *ipoint
-	} else {
-		npoint = ipoint.Clone(casted)
-	}
+	npoint := ipoint.Clone(casted)
+
 	if valCmpCasted == 0 {
 		return npoint, nil
 	}
@@ -350,25 +332,13 @@ func appendPoints2IndexRange(sctx sessionctx.Context, origin *Range, rangePoints
 		collators := make([]collate.Collator, len(origin.Collators)+1)
 		copy(collators, origin.Collators)
 		collators[len(origin.Collators)] = collate.GetCollator(ft.GetCollate())
-		var ir *Range
-		ptr := sctx.GetSessionVars().GetObjectPointer(sizeOfRange, false)
-		if ptr != nil {
-			ir = (*Range)(ptr)
-			*ir = Range{
-				LowVal:      lowVal,
-				LowExclude:  startPoint.excl,
-				HighVal:     highVal,
-				HighExclude: endPoint.excl,
-				Collators:   collators,
-			}
-		} else {
-			ir = &Range{
-				LowVal:      lowVal,
-				LowExclude:  startPoint.excl,
-				HighVal:     highVal,
-				HighExclude: endPoint.excl,
-				Collators:   collators,
-			}
+
+		ir := &Range{
+			LowVal:      lowVal,
+			LowExclude:  startPoint.excl,
+			HighVal:     highVal,
+			HighExclude: endPoint.excl,
+			Collators:   collators,
 		}
 
 		newRanges = append(newRanges, ir)
@@ -778,14 +748,7 @@ func newFieldTypeUsingCache(sctx sessionctx.Context, tp *types.FieldType) *types
 	switch tp.GetType() {
 	// To avoid overflow error.
 	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeInt24, mysql.TypeLong, mysql.TypeLonglong:
-		var fdBuild *types.FieldTypeBuilder
-		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder, false)
-		if ptr != nil {
-			fdBuild = (*types.FieldTypeBuilder)(ptr)
-			*fdBuild = types.FieldTypeBuilder{}
-		} else {
-			fdBuild = &types.FieldTypeBuilder{}
-		}
+		fdBuild := &types.FieldTypeBuilder{}
 		newTp := types.NewFieldTypeUsingBuilder(fdBuild, mysql.TypeLonglong)
 		newTp.SetFlag(tp.GetFlag())
 		newTp.SetCharset(tp.GetCharset())
@@ -793,14 +756,7 @@ func newFieldTypeUsingCache(sctx sessionctx.Context, tp *types.FieldType) *types
 	// To avoid data truncate error.
 	case mysql.TypeFloat, mysql.TypeDouble, mysql.TypeBlob, mysql.TypeTinyBlob, mysql.TypeMediumBlob, mysql.TypeLongBlob,
 		mysql.TypeString, mysql.TypeVarchar, mysql.TypeVarString:
-		var fdBuild *types.FieldTypeBuilder
-		ptr := sctx.GetSessionVars().GetObjectPointer(types.SizeOfFieldTypeBuilder, false)
-		if ptr != nil {
-			fdBuild = (*types.FieldTypeBuilder)(ptr)
-			*fdBuild = types.FieldTypeBuilder{}
-		} else {
-			fdBuild = &types.FieldTypeBuilder{}
-		}
+		fdBuild := &types.FieldTypeBuilder{}
 		newTp := types.NewFieldTypeWithCollationUsingBuilder(fdBuild, tp.GetType(), tp.GetCollate(), types.UnspecifiedLength)
 		newTp.SetCharset(tp.GetCharset())
 		return newTp

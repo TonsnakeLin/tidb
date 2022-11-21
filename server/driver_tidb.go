@@ -243,25 +243,10 @@ func (tc *TiDBContext) ExecuteStmt(ctx context.Context, stmt ast.StmtNode) (Resu
 	if rs == nil {
 		return nil, nil
 	}
-	/*
-		return &tidbResultSet{
-			recordSet: rs,
-		}, nil
-	*/
-	var res *tidbResultSet
-	ptr := tc.Session.GetSessionVars().GetObjectPointer(sizeOfResultSetSize, true)
-	if ptr != nil {
-		res = (*tidbResultSet)(ptr)
-		*res = tidbResultSet{
-			recordSet: rs,
-		}
-		if res.recordSet == nil {
-			logutil.BgLogger().Error("res.recordSet is nil")
-		}
-	} else {
-		res = &tidbResultSet{
-			recordSet: rs,
-		}
+
+	res := serverObjFactory.tidbResultSets.GetObjectPointer(tc.Session.GetSessionVars().ConnectionID, tc.Session.GetSessionVars().IsClientConn)
+	*res = tidbResultSet{
+		recordSet: rs,
 	}
 
 	return res, nil
@@ -414,6 +399,75 @@ func (tc *TiDBContext) DecodeSessionStates(ctx context.Context, sctx sessionctx.
 		}
 	}
 	return nil
+}
+
+type tidbResultSetPool struct {
+	instances [slotNum]*tidbResultSetInstance
+}
+
+func (p *tidbResultSetPool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &tidbResultSetInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *tidbResultSetPool) GetObjectPointer(connID uint64, useCache bool) *tidbResultSet {
+	if !useCache {
+		return &tidbResultSet{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *tidbResultSetPool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type tidbResultSetInstance struct {
+	wrappers [numPerSlot]*tidbResultSetWrapper
+}
+
+func (ins *tidbResultSetInstance) Init() {
+	for i := 0; i < numPerSlot; i++ {
+		e := &tidbResultSet{}
+		w := &tidbResultSetWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *tidbResultSetInstance) getObjectPointer(connID uint64) *tidbResultSet {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &tidbResultSet{}
+}
+
+func (ins *tidbResultSetInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type tidbResultSetWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *tidbResultSet
+}
+
+func (w *tidbResultSetWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
 }
 
 type tidbResultSet struct {

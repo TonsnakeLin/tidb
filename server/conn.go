@@ -83,6 +83,7 @@ import (
 	"github.com/pingcap/tidb/sessiontxn"
 	storeerr "github.com/pingcap/tidb/store/driver/error"
 	"github.com/pingcap/tidb/tablecodec"
+	"github.com/pingcap/tidb/types"
 	tidbutil "github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/arena"
 	"github.com/pingcap/tidb/util/chunk"
@@ -163,6 +164,30 @@ var (
 	affectedRowsCounterDelete  = metrics.AffectedRowsCounter.WithLabelValues("Delete")
 	affectedRowsCounterReplace = metrics.AffectedRowsCounter.WithLabelValues("Replace")
 )
+
+const (
+	slotNum    = 64
+	numPerSlot = 4
+)
+
+type ServerObjectFactory struct {
+	tidbResultSets *tidbResultSetPool
+}
+
+var serverObjFactory *ServerObjectFactory
+
+func init() {
+	_trs := &tidbResultSetPool{}
+	_trs.Init()
+
+	serverObjFactory = &ServerObjectFactory{
+		tidbResultSets: _trs,
+	}
+}
+
+func (f *ServerObjectFactory) Reset(connID uint64) {
+	f.tidbResultSets.Reset(connID)
+}
 
 // newClientConn creates a *clientConn object.
 func newClientConn(s *Server) *clientConn {
@@ -1092,6 +1117,7 @@ func (cc *clientConn) Run(ctx context.Context) {
 		cc.memPoolSet.SliceAllocator.VisitInfoSlices = vsp
 	}
 	sessVars.SetMixedMemPool(cc.memPoolSet)
+	sessVars.IsClientConn = true
 	// Usually, client connection status changes between [dispatching] <=> [reading].
 	// When some event happens, server may notify this client connection by setting
 	// the status to special values, for example: kill or graceful shutdown.
@@ -1111,6 +1137,7 @@ func (cc *clientConn) Run(ctx context.Context) {
 		cc.memPoolSet.SliceAllocator.ExprColSlices.(*expression.ExprColumnSlicePool).Reset()
 		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSlicePool).Reset()
 		cc.memPoolSet.SliceAllocator.VisitInfoSlices.(*core.VisitInfoSlicePool).Reset()
+		resetObjectFactories(sessVars.ConnectionID)
 		// close connection when idle time is more than wait_timeout
 		waitTimeout := cc.getSessionVarsWaitTimeout(ctx)
 		cc.pkt.setReadTimeout(time.Duration(waitTimeout) * time.Second)
@@ -2685,4 +2712,13 @@ func (cc getLastStmtInConn) PProfLabel() string {
 	default:
 		return ""
 	}
+}
+
+func resetObjectFactories(connID uint64) {
+	executor.ExecutorObjFactory.Reset(connID)
+	expression.ExpressionObjFactory.Reset(connID)
+	ast.AstObjFactory.Reset(connID)
+	serverObjFactory.Reset(connID)
+	session.SessionObjFactory.Reset(connID)
+	types.TypesObjFactory.Reset(connID)
 }

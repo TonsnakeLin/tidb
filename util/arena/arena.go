@@ -160,13 +160,11 @@ func (s *SimpleAllocator) Reset() {
 
 type MemPoolSet struct {
 	mutex          sync.Mutex
-	ObjAllocator   *ObjectorAllocator
 	SliceAllocator *SliceAlloctor
 	MapAlloctor    *MapAllocator
 }
 
 func (mps *MemPoolSet) ResetMemPoolSet() {
-	mps.ObjAllocator.Reset()
 	mps.SliceAllocator.Reset()
 	mps.MapAlloctor.Reset()
 }
@@ -182,7 +180,6 @@ func NewMemPoolSet() *MemPoolSet {
 	mapAllocator.InitMapAllocator()
 
 	return &MemPoolSet{
-		ObjAllocator:   objAllocator,
 		SliceAllocator: sliceAllocator,
 		MapAlloctor:    mapAllocator,
 	}
@@ -217,15 +214,6 @@ func (mps *MemPoolSet) GetTblInfo2UnionScanMap() map[*model.TableInfo]bool {
 //**********************************************************************************
 func (mps *MemPoolSet) GetStringToDurationMap() map[string]time.Duration {
 	return mps.MapAlloctor.strToDurationMaps.GetOneMap()
-}
-
-// ObjAllocator interface
-// ObjAllocator interface
-func (mps *MemPoolSet) GetObjectPointer(len int, useCache bool) unsafe.Pointer {
-	if !useCache {
-		return nil
-	}
-	return mps.ObjAllocator.GetObjectPointer(len)
 }
 
 // Slices interfaces which have no type
@@ -305,7 +293,7 @@ type ObjectorAllocator struct {
 }
 
 func (objAlloc *ObjectorAllocator) Init() {
-	objAlloc.arena = make([]byte, 1073741824, 1073741824)
+	objAlloc.arena = make([]byte, 256*1024, 256*1024)
 	objAlloc.offset = 0
 	objAlloc.capacity = 262144
 }
