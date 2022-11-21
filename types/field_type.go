@@ -46,6 +46,14 @@ type TypesObjectFactory struct {
 	FldTypes *ast.FieldTypePool
 }
 
+func init() {
+	ft := &ast.FieldTypePool{}
+	ft.Init()
+	TypesObjFactory = &TypesObjectFactory{
+		FldTypes: ft,
+	}
+}
+
 func (f *TypesObjectFactory) Reset(connID uint64) {
 	f.FldTypes.Reset(connID)
 }
