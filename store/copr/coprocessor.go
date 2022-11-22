@@ -901,7 +901,7 @@ func (worker *copIteratorWorker) handleTaskOnce(bo *Backoffer, task *copTask, ch
 	startTime := time.Now()
 	if worker.kvclient.Stats == nil {
 		// worker.kvclient.Stats = make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
-		worker.kvclient.Stats = CoprPkgObjFactory.getOneMap(worker.memTracker.SessionID)
+		worker.kvclient.Stats = CoprPkgObjFactory.getOneMap(worker.memTracker)
 	}
 	req.ReadReplicaScope = worker.req.ReadReplicaScope
 	if worker.req.IsStaleness {
@@ -1533,12 +1533,12 @@ func (f *CoprPackageObjectFactory) Init() {
 	}
 }
 
-func (f *CoprPackageObjectFactory) getOneMap(connID uint64) map[tikvrpc.CmdType]*tikv.RPCRuntimeStats {
-	if connID == 0 {
+func (f *CoprPackageObjectFactory) getOneMap(tracker *memory.Tracker) map[tikvrpc.CmdType]*tikv.RPCRuntimeStats {
+	if tracker == nil || tracker.SessionID == 0 {
 		logutil.BgLogger().Warn("getOneMap: connID==0")
 		return make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
 	}
-	p := f.mapPool[connID%slotNum]
+	p := f.mapPool[tracker.SessionID%slotNum]
 	return p.getOneMap()
 }
 
