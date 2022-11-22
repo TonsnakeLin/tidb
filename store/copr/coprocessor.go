@@ -900,7 +900,8 @@ func (worker *copIteratorWorker) handleTaskOnce(bo *Backoffer, task *copTask, ch
 	req.StoreTp = getEndPointType(task.storeType)
 	startTime := time.Now()
 	if worker.kvclient.Stats == nil {
-		worker.kvclient.Stats = make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
+		// worker.kvclient.Stats = make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
+		worker.kvclient.Stats = CoprPkgObjFactory.getOneMap(worker.memTracker.SessionID)
 	}
 	req.ReadReplicaScope = worker.req.ReadReplicaScope
 	if worker.req.IsStaleness {
@@ -1506,4 +1507,66 @@ func BuildKeyRanges(keys ...string) []kv.KeyRange {
 		})
 	}
 	return ranges
+}
+
+const (
+	slotNum    = 32
+	numPerSlot = 32
+)
+
+var CoprPkgObjFactory *CoprPackageObjectFactory
+
+func init() {
+	CoprPkgObjFactory = &CoprPackageObjectFactory{}
+	CoprPkgObjFactory.Init()
+}
+
+type CoprPackageObjectFactory struct {
+	mapPool [slotNum]*coprPackageMapPool
+}
+
+func (f *CoprPackageObjectFactory) Init() {
+	for i := 0; i < slotNum; i++ {
+		mp := &coprPackageMapPool{}
+		mp.init()
+		f.mapPool[i] = mp
+	}
+}
+
+func (f *CoprPackageObjectFactory) getOneMap(connID uint64) map[tikvrpc.CmdType]*tikv.RPCRuntimeStats {
+	if connID == 0 {
+		logutil.BgLogger().Warn("getOneMap: connID==0")
+		return make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
+	}
+	p := f.mapPool[connID%slotNum]
+	return p.getOneMap()
+}
+
+type coprPackageMapPool struct {
+	mapWraps [numPerSlot]*cmd2RPCRuntimeStatsWrap
+}
+
+func (p *coprPackageMapPool) init() {
+	for i := 0; i < numPerSlot; i++ {
+		w := &cmd2RPCRuntimeStatsWrap{}
+		w.data = make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
+		p.mapWraps[i] = w
+	}
+}
+
+func (p *coprPackageMapPool) getOneMap() map[tikvrpc.CmdType]*tikv.RPCRuntimeStats {
+	for _, w := range p.mapWraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			for k := range w.data {
+				delete(w.data, k)
+			}
+			return w.data
+		}
+	}
+	return make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
+}
+
+type cmd2RPCRuntimeStatsWrap struct {
+	inUse uint32
+	data  map[tikvrpc.CmdType]*tikv.RPCRuntimeStats
 }
