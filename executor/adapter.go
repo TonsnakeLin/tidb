@@ -2191,6 +2191,7 @@ func setStatementContextMap(vars *variable.SessionVars, sc *stmtctx.StatementCon
 		sc.StatsLoadStatus = make(map[model.TableItemID]string)
 		sc.TableStats = make(map[int64]interface{})
 		sc.TblInfo2UnionScan = make(map[*model.TableInfo]bool)
+		return
 	}
 	f := vars.ExecutorPkgMaps.(*ExecutorPkgMapFactory)
 	sc.CTEStorageMap = f.miscMaps.getCTEStorageMap()
