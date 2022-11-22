@@ -2119,6 +2119,7 @@ type ExecutorPkgMapFactory struct {
 func (f *ExecutorPkgMapFactory) Init() {
 	miscSmallMapPool := &miscSmallMapPool{}
 	miscSmallMapPool.init()
+	f.miscMaps = miscSmallMapPool
 }
 
 type miscSmallMapPool struct {
