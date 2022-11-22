@@ -953,19 +953,11 @@ func (sc *StatementContext) PushDownFlags() uint64 {
 }
 
 // CopTasksDetails returns some useful information of cop-tasks during execution.
-func (sc *StatementContext) CopTasksDetails() *CopTasksDetails {
+func (sc *StatementContext) CopTasksDetails(f *StmtCtxObjectFactory) *CopTasksDetails {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	n := len(sc.mu.allExecDetails)
-	d := &CopTasksDetails{
-		NumCopTasks:       n,
-		MaxBackoffTime:    make(map[string]time.Duration),
-		AvgBackoffTime:    make(map[string]time.Duration),
-		P90BackoffTime:    make(map[string]time.Duration),
-		TotBackoffTime:    make(map[string]time.Duration),
-		TotBackoffTimes:   make(map[string]int),
-		MaxBackoffAddress: make(map[string]string),
-	}
+	d := getCopTasksDetails(f, n)
 	if n == 0 {
 		return d
 	}
@@ -1129,4 +1121,60 @@ func (r StatsLoadResult) ErrorMsg() string {
 	b.WriteString(", err:")
 	b.WriteString(r.Error.Error())
 	return b.String()
+}
+
+type StmtCtxObjectFactory struct {
+	copTasksDetails *CopTasksDetails
+}
+
+func (f *StmtCtxObjectFactory) Init() {
+	f.copTasksDetails = &CopTasksDetails{
+		MaxBackoffTime:    make(map[string]time.Duration),
+		AvgBackoffTime:    make(map[string]time.Duration),
+		P90BackoffTime:    make(map[string]time.Duration),
+		TotBackoffTime:    make(map[string]time.Duration),
+		TotBackoffTimes:   make(map[string]int),
+		MaxBackoffAddress: make(map[string]string),
+	}
+}
+
+func getCopTasksDetails(f *StmtCtxObjectFactory, n int) *CopTasksDetails {
+	if f == nil {
+		return &CopTasksDetails{
+			NumCopTasks:       n,
+			MaxBackoffTime:    make(map[string]time.Duration),
+			AvgBackoffTime:    make(map[string]time.Duration),
+			P90BackoffTime:    make(map[string]time.Duration),
+			TotBackoffTime:    make(map[string]time.Duration),
+			TotBackoffTimes:   make(map[string]int),
+			MaxBackoffAddress: make(map[string]string),
+		}
+	}
+
+	p := f.copTasksDetails
+	for k := range p.MaxBackoffTime {
+		delete(p.MaxBackoffTime, k)
+	}
+
+	for k := range p.AvgBackoffTime {
+		delete(p.AvgBackoffTime, k)
+	}
+
+	for k := range p.P90BackoffTime {
+		delete(p.P90BackoffTime, k)
+	}
+
+	for k := range p.TotBackoffTime {
+		delete(p.TotBackoffTime, k)
+	}
+
+	for k := range p.TotBackoffTimes {
+		delete(p.TotBackoffTimes, k)
+	}
+
+	for k := range p.MaxBackoffAddress {
+		delete(p.MaxBackoffAddress, k)
+	}
+
+	return p
 }

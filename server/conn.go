@@ -2728,4 +2728,8 @@ func setSessionCachedPool(vars *variable.SessionVars) {
 	execPkgMapFacory := &executor.ExecutorPkgMapFactory{}
 	execPkgMapFacory.Init()
 	vars.ExecutorPkgMaps = execPkgMapFacory
+
+	stmtCtxPkgFactory := &stmtctx.StmtCtxObjectFactory{}
+	stmtCtxPkgFactory.Init()
+	vars.StmtCtxPkgFactory = stmtCtxPkgFactory
 }

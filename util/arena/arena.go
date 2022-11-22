@@ -17,6 +17,7 @@ package arena
 import (
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -392,39 +393,34 @@ func (ma *MapAllocator) Reset() {
 }
 
 type StringToDurationMapPool struct {
-	mutex sync.Mutex
-	maps  [32]map[string]time.Duration
-	inUse [32]bool
+	maps [16]*strToDurationMapWrap
 }
 
-func (m *StringToDurationMapPool) Init() {
-	for i := 0; i < 32; i++ {
-		m.maps[i] = make(map[string]time.Duration)
+func (p *StringToDurationMapPool) Init() {
+	for i := 0; i < 16; i++ {
+		w := &strToDurationMapWrap{}
+		w.Init()
+		p.maps[i] = w
 	}
 }
 
-func (m *StringToDurationMapPool) GetOneMap() map[string]time.Duration {
-	var v map[string]time.Duration
-	m.mutex.Lock()
-	for i := 0; i < 32; i++ {
-		if m.inUse[i] {
-			continue
+func (p *StringToDurationMapPool) GetOneMap() map[string]time.Duration {
+	for _, w := range p.maps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			for k := range w.data {
+				delete(w.data, k)
+			}
+			return w.data
 		}
-		m.inUse[i] = true
-		v = m.maps[i]
-		break
 	}
-	m.mutex.Unlock()
-	if v == nil {
-		return make(map[string]time.Duration)
-	}
-
-	for k := range v {
-		delete(v, k)
-	}
-	return v
+	return make(map[string]time.Duration)
 }
 
-/*
+type strToDurationMapWrap struct {
+	inUse uint32
+	data  map[string]time.Duration
+}
 
- */
+func (m *strToDurationMapWrap) Init() {
+	m.data = make(map[string]time.Duration)
+}

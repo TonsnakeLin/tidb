@@ -50,7 +50,7 @@ func TestCopTasksDetails(t *testing.T) {
 		}
 		ctx.MergeExecDetails(d, nil)
 	}
-	d := ctx.CopTasksDetails()
+	d := ctx.CopTasksDetails(nil)
 	require.Equal(t, 100, d.NumCopTasks)
 	require.Equal(t, time.Second*101/2, d.AvgProcessTime)
 	require.Equal(t, time.Second*91, d.P90ProcessTime)
