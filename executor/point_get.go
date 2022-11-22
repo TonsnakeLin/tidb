@@ -59,7 +59,7 @@ func (b *executorBuilder) buildPointGet(p *plannercore.PointGetPlan) Executor {
 		}()
 	}
 	sVars := b.ctx.GetSessionVars()
-	e := ExecutorObjFactory.pointExecutors.GetObjectPointer(sVars.ConnectionID, sVars.IsClientConn)
+	e := ExecutorObjFactory.pointExecutors.GetObjectPointer(sVars.ConnectionID, false)
 	*e = PointGetExecutor{
 		baseExecutor:     newBaseExecutor(b.ctx, p.Schema(), p.ID()),
 		txnScope:         b.txnScope,

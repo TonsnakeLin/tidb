@@ -1309,6 +1309,9 @@ type SessionVars struct {
 	preUseChunkAlloc bool
 
 	MixedMemPool *arena.MemPoolSet
+
+	//////////////////////////////////////////////////////////////////
+	ExecutorPkgMaps any
 }
 
 func (s *SessionVars) SetMixedMemPool(poolSet *arena.MemPoolSet) {

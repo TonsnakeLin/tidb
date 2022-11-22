@@ -2111,3 +2111,91 @@ func convertStatusIntoString(sctx sessionctx.Context, statsLoadStatus map[model.
 	}
 	return r
 }
+
+type ExecutorPkgMapFactory struct {
+	miscMaps *miscSmallMapPool
+}
+
+func (f *ExecutorPkgMapFactory) Init() {
+	miscSmallMapPool := &miscSmallMapPool{}
+	miscSmallMapPool.init()
+}
+
+type miscSmallMapPool struct {
+	// StmtCtxsmall maps
+	statsLoadStatus      map[model.TableItemID]string
+	lockTableIDs         map[int64]struct{}
+	tblInfo2UnionScan    map[*model.TableInfo]bool
+	tableStats           map[int64]interface{}
+	isolationReadEngines map[kv.StoreType]struct{}
+	cteStorage           map[int]*CTEStorages
+}
+
+func (m *miscSmallMapPool) init() {
+	m.statsLoadStatus = make(map[model.TableItemID]string, 2)
+	m.lockTableIDs = make(map[int64]struct{})
+	m.tblInfo2UnionScan = make(map[*model.TableInfo]bool, 2)
+	m.tableStats = make(map[int64]interface{})
+	m.isolationReadEngines = make(map[kv.StoreType]struct{}, 3)
+	m.cteStorage = make(map[int]*CTEStorages)
+}
+
+func (m *miscSmallMapPool) getTblInfo2UnionScanMap() map[*model.TableInfo]bool {
+	for k := range m.tblInfo2UnionScan {
+		delete(m.tblInfo2UnionScan, k)
+	}
+	return m.tblInfo2UnionScan
+}
+
+func (m *miscSmallMapPool) getStatsLoadStatusMap() map[model.TableItemID]string {
+	for k := range m.statsLoadStatus {
+		delete(m.statsLoadStatus, k)
+	}
+	return m.statsLoadStatus
+}
+
+func (m *miscSmallMapPool) getLockTableIDs() map[int64]struct{} {
+	for k := range m.lockTableIDs {
+		delete(m.lockTableIDs, k)
+	}
+	return m.lockTableIDs
+}
+
+func (m *miscSmallMapPool) getTableStatsMap() map[int64]interface{} {
+	for k := range m.tableStats {
+		delete(m.tableStats, k)
+	}
+	return m.tableStats
+}
+
+func (m *miscSmallMapPool) getIsolationReadEnginesMap() map[kv.StoreType]struct{} {
+	for k := range m.isolationReadEngines {
+		delete(m.isolationReadEngines, k)
+	}
+	return m.isolationReadEngines
+}
+
+func (m *miscSmallMapPool) getCTEStorageMap() map[int]*CTEStorages {
+	for k := range m.cteStorage {
+		delete(m.cteStorage, k)
+	}
+	return m.cteStorage
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+func setStatementContextMap(vars *variable.SessionVars, sc *stmtctx.StatementContext) {
+	if vars.ExecutorPkgMaps == nil {
+		sc.CTEStorageMap = make(map[int]*CTEStorages)
+		sc.LockTableIDs = make(map[int64]struct{})
+		sc.StatsLoadStatus = make(map[model.TableItemID]string)
+		sc.TableStats = make(map[int64]interface{})
+		sc.TblInfo2UnionScan = make(map[*model.TableInfo]bool)
+	}
+	f := vars.ExecutorPkgMaps.(*ExecutorPkgMapFactory)
+	sc.CTEStorageMap = f.miscMaps.getCTEStorageMap()
+	sc.LockTableIDs = f.miscMaps.getLockTableIDs()
+	sc.StatsLoadStatus = f.miscMaps.getStatsLoadStatusMap()
+	sc.TableStats = f.miscMaps.getTableStatsMap()
+	sc.TblInfo2UnionScan = f.miscMaps.getTblInfo2UnionScanMap()
+}

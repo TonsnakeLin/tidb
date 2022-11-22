@@ -2005,25 +2005,13 @@ func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 
 	sc.TimeZone = vars.Location()
 	sc.TaskID = stmtctx.AllocateTaskID()
-	sc.CTEStorageMap = map[int]*CTEStorages{}
+	// sc.CTEStorageMap = map[int]*CTEStorages{}
 	sc.IsStaleness = false
 	// sc.LockTableIDs = make(map[int64]struct{})
-	if vars.MixedMemPool != nil {
-		sc.LockTableIDs = vars.MixedMemPool.GetLockTableIDsMap()
-	} else {
-		sc.LockTableIDs = make(map[int64]struct{})
-	}
-
 	sc.EnableOptimizeTrace = false
 	sc.OptimizeTracer = nil
 	sc.OptimizerCETrace = nil
 	// sc.StatsLoadStatus = make(map[model.TableItemID]string)
-	if vars.MixedMemPool != nil {
-		sc.StatsLoadStatus = vars.MixedMemPool.GetStatsLoadStatusMap()
-	} else {
-		sc.StatsLoadStatus = make(map[model.TableItemID]string)
-	}
-
 	sc.IsSyncStatsFailed = false
 	sc.IsExplainAnalyzeDML = false
 	// Firstly we assume that UseDynamicPruneMode can be enabled according session variable, then we will check other conditions
@@ -2042,12 +2030,6 @@ func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 	vars.DiskTracker.ResetMaxConsumed()
 	vars.MemTracker.SessionID = vars.ConnectionID
 	// vars.StmtCtx.TableStats = make(map[int64]interface{})
-	if vars.MixedMemPool != nil {
-		vars.StmtCtx.TableStats = vars.MixedMemPool.GetTableStatsMap()
-	} else {
-		vars.StmtCtx.TableStats = make(map[int64]interface{})
-	}
-
 	if _, ok := s.(*ast.AnalyzeTableStmt); ok {
 		sc.InitMemTracker(memory.LabelForAnalyzeMemory, -1)
 		vars.MemTracker.SetBytesLimit(-1)
@@ -2232,12 +2214,7 @@ func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 	}
 
 	// sc.TblInfo2UnionScan = make(map[*model.TableInfo]bool)
-	if vars.MixedMemPool != nil {
-		sc.TblInfo2UnionScan = vars.MixedMemPool.GetTblInfo2UnionScanMap()
-	} else {
-		sc.TblInfo2UnionScan = make(map[*model.TableInfo]bool)
-	}
-
+	setStatementContextMap(vars, sc)
 	errCount, warnCount := vars.StmtCtx.NumErrorWarnings()
 	vars.SysErrorCount = errCount
 	vars.SysWarningCount = warnCount

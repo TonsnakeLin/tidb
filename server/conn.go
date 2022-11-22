@@ -1118,6 +1118,7 @@ func (cc *clientConn) Run(ctx context.Context) {
 	}
 	sessVars.SetMixedMemPool(cc.memPoolSet)
 	sessVars.IsClientConn = true
+	setSessionCachedPool(sessVars)
 	// Usually, client connection status changes between [dispatching] <=> [reading].
 	// When some event happens, server may notify this client connection by setting
 	// the status to special values, for example: kill or graceful shutdown.
@@ -2721,4 +2722,10 @@ func resetObjectFactories(connID uint64) {
 	serverObjFactory.Reset(connID)
 	session.SessionObjFactory.Reset(connID)
 	types.TypesObjFactory.Reset(connID)
+}
+
+func setSessionCachedPool(vars *variable.SessionVars) {
+	execPkgMapFacory := &executor.ExecutorPkgMapFactory{}
+	execPkgMapFacory.Init()
+	vars.ExecutorPkgMaps = execPkgMapFacory
 }
