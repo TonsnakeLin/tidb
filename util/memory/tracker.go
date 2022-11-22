@@ -287,7 +287,8 @@ func (t *Tracker) AttachTo(parent *Tracker) {
 	}
 	parent.mu.Lock()
 	if parent.mu.children == nil {
-		parent.mu.children = make(map[int][]*Tracker)
+		// parent.mu.children = make(map[int][]*Tracker)
+		parent.mu.children = MemoryPkgObjFactory.GetInt2TracSliceMap(t.SessionID)
 	}
 	parent.mu.children[t.label] = append(parent.mu.children[t.label], t)
 	parent.mu.Unlock()
@@ -842,4 +843,69 @@ const (
 // string[0] is LblModule, string[1] is heap-in-use type, string[2] is released type
 var MetricsTypes = map[int][]string{
 	LabelForGlobalAnalyzeMemory: {"analyze", "inuse", "released"},
+}
+
+const (
+	slotNum    = 64
+	numPerSlot = 4
+)
+
+var MemoryPkgObjFactory *MemoryPackageObjectFactory
+
+func init() {
+	MemoryPkgObjFactory = &MemoryPackageObjectFactory{}
+	MemoryPkgObjFactory.Init()
+}
+
+type MemoryPackageObjectFactory struct {
+	int2TracSlicePools [slotNum]*int2TrackerSlicePool
+}
+
+func (f *MemoryPackageObjectFactory) Init() {
+	for i := 0; i < slotNum; i++ {
+		p := &int2TrackerSlicePool{}
+		p.Init()
+		f.int2TracSlicePools[i] = p
+	}
+}
+
+func (f *MemoryPackageObjectFactory) GetInt2TracSliceMap(connID uint64) map[int][]*Tracker {
+	if connID == 0 {
+		return make(map[int][]*Tracker)
+	}
+	p := f.int2TracSlicePools[connID%slotNum]
+	return p.getInt2TrackerSliceMap(connID)
+}
+
+type int2TrackerSlicePool struct {
+	wraps [numPerSlot]*int2TrackerSliceWrap
+}
+
+func (p *int2TrackerSlicePool) Init() {
+	for i := 0; i < numPerSlot; i++ {
+		w := &int2TrackerSliceWrap{}
+		w.init()
+		p.wraps[i] = w
+	}
+}
+
+func (p *int2TrackerSlicePool) getInt2TrackerSliceMap(connID uint64) map[int][]*Tracker {
+	for _, w := range p.wraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			for k := range w.data {
+				delete(w.data, k)
+			}
+			return w.data
+		}
+	}
+	return make(map[int][]*Tracker)
+}
+
+type int2TrackerSliceWrap struct {
+	inUse uint32
+	data  map[int][]*Tracker
+}
+
+func (w *int2TrackerSliceWrap) init() {
+	w.data = make(map[int][]*Tracker)
 }
