@@ -1534,10 +1534,13 @@ func (f *CoprPackageObjectFactory) Init() {
 }
 
 func (f *CoprPackageObjectFactory) getOneMap(tracker *memory.Tracker) map[tikvrpc.CmdType]*tikv.RPCRuntimeStats {
+
 	if tracker == nil || tracker.SessionID == 0 {
-		logutil.BgLogger().Warn("getOneMap: connID==0")
 		return make(map[tikvrpc.CmdType]*tikv.RPCRuntimeStats)
 	}
+
+	// logutil.BgLogger().Warn("getOneMap:", zap.Uint64("SessionID", tracker.SessionID))
+
 	p := f.mapPool[tracker.SessionID%slotNum]
 	return p.getOneMap()
 }

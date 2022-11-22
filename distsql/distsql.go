@@ -17,6 +17,7 @@ package distsql
 import (
 	"context"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/opentracing/opentracing-go"
@@ -256,4 +257,47 @@ func WithSQLKvExecCounterInterceptor(ctx context.Context, stmtCtx *stmtctx.State
 		return interceptor.WithRPCInterceptor(ctx, stmtCtx.KvExecCounter.RPCInterceptor())
 	}
 	return ctx
+}
+
+type DistsqlPackageObjectFactory struct {
+	selResMapPool *selectResultMapPool
+}
+
+func (f *DistsqlPackageObjectFactory) Init() {
+	selResMapPool := &selectResultMapPool{}
+	selResMapPool.init()
+	f.selResMapPool = selResMapPool
+}
+
+type selectResultMapPool struct {
+	backoffSleep     map[string]time.Duration
+	recorededPlanIDs map[int]int
+}
+
+func (p selectResultMapPool) init() {
+	p.backoffSleep = make(map[string]time.Duration)
+	p.recorededPlanIDs = make(map[int]int)
+}
+
+func getBackoffSleepMap(f any) map[string]time.Duration {
+	if f == nil {
+		return make(map[string]time.Duration)
+	}
+	df := f.(*DistsqlPackageObjectFactory)
+
+	for k := range df.selResMapPool.backoffSleep {
+		delete(df.selResMapPool.backoffSleep, k)
+	}
+	return df.selResMapPool.backoffSleep
+}
+
+func getRecorededPlanIDsMap(f any) map[int]int {
+	if f == nil {
+		return make(map[int]int)
+	}
+	df := f.(*DistsqlPackageObjectFactory)
+	for k := range df.selResMapPool.recorededPlanIDs {
+		delete(df.selResMapPool.recorededPlanIDs, k)
+	}
+	return df.selResMapPool.recorededPlanIDs
 }

@@ -1311,8 +1311,9 @@ type SessionVars struct {
 	MixedMemPool *arena.MemPoolSet
 
 	//////////////////////////////////////////////////////////////////
-	ExecutorPkgMaps   any
-	StmtCtxPkgFactory *stmtctx.StmtCtxObjectFactory
+	ExecutorPkgMaps    any
+	StmtCtxPkgFactory  *stmtctx.StmtCtxObjectFactory
+	DisqlPkgObjFactory any
 }
 
 func (s *SessionVars) SetMixedMemPool(poolSet *arena.MemPoolSet) {

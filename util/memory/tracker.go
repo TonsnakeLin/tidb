@@ -277,6 +277,7 @@ func (t *Tracker) Label() int {
 // already has a parent, this function will remove it from the old parent.
 // Its consumed memory usage is used to update all its ancestors.
 func (t *Tracker) AttachTo(parent *Tracker) {
+	t.SessionID = parent.SessionID
 	if parent.isGlobal {
 		t.AttachToGlobalTracker(parent)
 		return

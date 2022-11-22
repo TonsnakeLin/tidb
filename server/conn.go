@@ -58,6 +58,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/tidb/config"
+	"github.com/pingcap/tidb/distsql"
 	"github.com/pingcap/tidb/domain/infosync"
 	"github.com/pingcap/tidb/errno"
 	"github.com/pingcap/tidb/executor"
@@ -2732,4 +2733,8 @@ func setSessionCachedPool(vars *variable.SessionVars) {
 	stmtCtxPkgFactory := &stmtctx.StmtCtxObjectFactory{}
 	stmtCtxPkgFactory.Init()
 	vars.StmtCtxPkgFactory = stmtCtxPkgFactory
+
+	distsqlPkgObjFactory := &distsql.DistsqlPackageObjectFactory{}
+	distsqlPkgObjFactory.Init()
+	vars.DisqlPkgObjFactory = distsqlPkgObjFactory
 }

@@ -361,7 +361,7 @@ func (r *selectResult) updateCopRuntimeStats(ctx context.Context, copStats *copr
 	if r.stats == nil {
 		id := r.rootPlanID
 		r.stats = &selectResultRuntimeStats{
-			backoffSleep:       make(map[string]time.Duration),
+			backoffSleep:       getBackoffSleepMap(r.ctx.GetSessionVars().DisqlPkgObjFactory),
 			rpcStat:            tikv.NewRegionRequestRuntimeStats(),
 			distSQLConcurrency: r.distSQLConcurrency,
 		}
@@ -385,7 +385,7 @@ func (r *selectResult) updateCopRuntimeStats(ctx context.Context, copStats *copr
 		}
 	}
 	if hasExecutor {
-		var recorededPlanIDs = make(map[int]int)
+		var recorededPlanIDs = getRecorededPlanIDsMap(r.ctx.GetSessionVars().DisqlPkgObjFactory)
 		for i, detail := range r.selectResp.GetExecutionSummaries() {
 			if detail != nil && detail.TimeProcessedNs != nil &&
 				detail.NumProducedRows != nil && detail.NumIterations != nil {
