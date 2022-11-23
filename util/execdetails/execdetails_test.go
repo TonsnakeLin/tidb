@@ -159,7 +159,7 @@ func TestCopRuntimeStats(t *testing.T) {
 		RocksdbBlockReadCount:     20,
 		RocksdbBlockReadByte:      100,
 	}
-	stats.RecordScanDetail(tableScanID, "tikv", scanDetail)
+	stats.RecordScanDetail(0, tableScanID, "tikv", scanDetail)
 	require.True(t, stats.ExistsCopStats(tableScanID))
 
 	cop := stats.GetOrCreateCopStats(0, tableScanID, "tikv")
@@ -210,7 +210,7 @@ func TestCopRuntimeStatsForTiFlash(t *testing.T) {
 		RocksdbBlockReadCount:     10,
 		RocksdbBlockReadByte:      100,
 	}
-	stats.RecordScanDetail(tableScanID, "tiflash", scanDetail)
+	stats.RecordScanDetail(0, tableScanID, "tiflash", scanDetail)
 	require.True(t, stats.ExistsCopStats(tableScanID))
 
 	cop := stats.GetOrCreateCopStats(0, tableScanID, "tiflash")
