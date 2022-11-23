@@ -870,6 +870,11 @@ func (f *MemoryPackageObjectFactory) Init() {
 	}
 }
 
+func (f *MemoryPackageObjectFactory) Reset(connID uint64) {
+	p := f.int2TracSlicePools[connID%slotNum]
+	p.Reset(connID)
+}
+
 func (f *MemoryPackageObjectFactory) GetInt2TracSliceMap(connID uint64) map[int][]*Tracker {
 	if connID == 0 {
 		return make(map[int][]*Tracker)
@@ -890,6 +895,15 @@ func (p *int2TrackerSlicePool) Init() {
 	}
 }
 
+func (p *int2TrackerSlicePool) Reset(connID uint64) {
+	for _, w := range p.wraps {
+		if atomic.LoadUint64(&w.connID) == connID {
+			atomic.StoreUint64(&w.connID, connID)
+			atomic.StoreUint32(&w.inUse, 0)
+		}
+	}
+}
+
 func (p *int2TrackerSlicePool) getInt2TrackerSliceMap(connID uint64) map[int][]*Tracker {
 	for _, w := range p.wraps {
 		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
@@ -903,8 +917,9 @@ func (p *int2TrackerSlicePool) getInt2TrackerSliceMap(connID uint64) map[int][]*
 }
 
 type int2TrackerSliceWrap struct {
-	inUse uint32
-	data  map[int][]*Tracker
+	inUse  uint32
+	connID uint64
+	data   map[int][]*Tracker
 }
 
 func (w *int2TrackerSliceWrap) init() {
