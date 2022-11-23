@@ -163,7 +163,7 @@ func (e *CheckIndexRangeExec) constructIndexScanPB() *tipb.Executor {
 	idxExec := &tipb.IndexScan{
 		TableId: e.table.ID,
 		IndexId: e.index.ID,
-		Columns: util.ColumnsToProto(e.cols, e.table.PKIsHandle),
+		Columns: util.ColumnsToProto(0, e.cols, e.table.PKIsHandle),
 	}
 	return &tipb.Executor{Tp: tipb.ExecType_TypeIndexScan, IdxScan: idxExec}
 }
@@ -225,7 +225,7 @@ func (e *RecoverIndexExec) Open(ctx context.Context) error {
 }
 
 func (e *RecoverIndexExec) constructTableScanPB(tblInfo *model.TableInfo, colInfos []*model.ColumnInfo) (*tipb.Executor, error) {
-	tblScan := tables.BuildTableScanFromInfos(tblInfo, colInfos)
+	tblScan := tables.BuildTableScanFromInfos(0, tblInfo, colInfos)
 	tblScan.TableId = e.physicalID
 	err := plannercore.SetPBColumnsDefaultValue(e.ctx, tblScan.Columns, colInfos)
 	return &tipb.Executor{Tp: tipb.ExecType_TypeTableScan, TblScan: tblScan}, err
@@ -805,7 +805,7 @@ func (e *CleanupIndexExec) constructIndexScanPB() *tipb.Executor {
 	idxExec := &tipb.IndexScan{
 		TableId:          e.physicalID,
 		IndexId:          e.index.Meta().ID,
-		Columns:          util.ColumnsToProto(e.columns, e.table.Meta().PKIsHandle),
+		Columns:          util.ColumnsToProto(0, e.columns, e.table.Meta().PKIsHandle),
 		PrimaryColumnIds: tables.TryGetCommonPkColumnIds(e.table.Meta()),
 	}
 	return &tipb.Executor{Tp: tipb.ExecType_TypeIndexScan, IdxScan: idxExec}

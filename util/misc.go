@@ -35,6 +35,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pingcap/errors"
@@ -394,10 +395,10 @@ func TLSCipher2String(n uint16) string {
 }
 
 // ColumnsToProto converts a slice of model.ColumnInfo to a slice of tipb.ColumnInfo.
-func ColumnsToProto(columns []*model.ColumnInfo, pkIsHandle bool) []*tipb.ColumnInfo {
+func ColumnsToProto(connID uint64, columns []*model.ColumnInfo, pkIsHandle bool) []*tipb.ColumnInfo {
 	cols := make([]*tipb.ColumnInfo, 0, len(columns))
 	for _, c := range columns {
-		col := ColumnToProto(c)
+		col := ColumnToProto(connID, c)
 		// TODO: Here `PkHandle`'s meaning is changed, we will change it to `IsHandle` when tikv's old select logic
 		// is abandoned.
 		if (pkIsHandle && mysql.HasPriKeyFlag(c.GetFlag())) || c.ID == model.ExtraHandleID {
@@ -411,8 +412,9 @@ func ColumnsToProto(columns []*model.ColumnInfo, pkIsHandle bool) []*tipb.Column
 }
 
 // ColumnToProto converts model.ColumnInfo to tipb.ColumnInfo.
-func ColumnToProto(c *model.ColumnInfo) *tipb.ColumnInfo {
-	pc := &tipb.ColumnInfo{
+func ColumnToProto(connID uint64, c *model.ColumnInfo) *tipb.ColumnInfo {
+	pc := getTipbColumnInfo(connID)
+	pc = &tipb.ColumnInfo{
 		ColumnId:  c.ID,
 		Collation: collate.RewriteNewCollationIDIfNeeded(int32(mysql.CollationNames[c.GetCollate()])),
 		ColumnLen: int32(c.GetFlen()),
@@ -700,4 +702,81 @@ func CreateCertificates(certpath string, keypath string, rsaKeySize int, pubKeyA
 func createTLSCertificates(certpath string, keypath string, rsaKeySize int) error {
 	// use RSA and unspecified signature algorithm
 	return CreateCertificates(certpath, keypath, rsaKeySize, x509.RSA, x509.UnknownSignatureAlgorithm)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+const (
+	slotNum128   = 128
+	numPerSlot64 = 64
+)
+
+var UtilPkgObjFactory *UtilPackageObjectFactory
+
+func init() {
+	UtilPkgObjFactory = &UtilPackageObjectFactory{}
+	UtilPkgObjFactory.Init()
+}
+
+func getTipbColumnInfo(connID uint64) *tipb.ColumnInfo {
+	if connID == 0 {
+		return &tipb.ColumnInfo{}
+	}
+
+	p := UtilPkgObjFactory.tipbColInfos[connID%slotNum128]
+	return p.getTipbColumnInfo(connID)
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+type UtilPackageObjectFactory struct {
+	tipbColInfos [slotNum128]*tipbColumnInfoPool
+}
+
+func (f *UtilPackageObjectFactory) Reset(connID uint64) {
+	p := f.tipbColInfos[connID%slotNum128]
+	p.Reset(connID)
+}
+
+func (f *UtilPackageObjectFactory) Init() {
+	for i := 0; i < slotNum128; i++ {
+		p := &tipbColumnInfoPool{}
+		p.init()
+		f.tipbColInfos[i] = p
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+type tipbColumnInfoPool struct {
+	wraps [numPerSlot64]*tipbColumnInfoWrap
+}
+
+func (p *tipbColumnInfoPool) init() {
+	for i := 0; i < numPerSlot64; i++ {
+		w := &tipbColumnInfoWrap{}
+		w.data = &tipb.ColumnInfo{}
+		p.wraps[i] = w
+	}
+}
+
+func (p *tipbColumnInfoPool) Reset(connID uint64) {
+	for _, v := range p.wraps {
+		if atomic.LoadUint64(&v.connID) == connID {
+			atomic.StoreUint32(&v.inUse, 0)
+		}
+	}
+}
+
+func (p *tipbColumnInfoPool) getTipbColumnInfo(connID uint64) *tipb.ColumnInfo {
+	for _, w := range p.wraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.data
+		}
+	}
+	return &tipb.ColumnInfo{}
+}
+
+type tipbColumnInfoWrap struct {
+	inUse  uint32
+	connID uint64
+	data   *tipb.ColumnInfo
 }

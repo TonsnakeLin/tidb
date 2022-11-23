@@ -397,7 +397,7 @@ func (r *reorgInfo) String() string {
 }
 
 func constructDescTableScanPB(physicalTableID int64, tblInfo *model.TableInfo, handleCols []*model.ColumnInfo) *tipb.Executor {
-	tblScan := tables.BuildTableScanFromInfos(tblInfo, handleCols)
+	tblScan := tables.BuildTableScanFromInfos(0, tblInfo, handleCols)
 	tblScan.TableId = physicalTableID
 	tblScan.Desc = true
 	return &tipb.Executor{Tp: tipb.ExecType_TypeTableScan, TblScan: tblScan}

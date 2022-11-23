@@ -188,7 +188,7 @@ func (p *PhysicalTableScan) ToPB(ctx sessionctx.Context, storeType kv.StoreType)
 	if storeType == kv.TiFlash && p.Table.GetPartitionInfo() != nil && p.IsMPPOrBatchCop && p.ctx.GetSessionVars().StmtCtx.UseDynamicPartitionPrune() {
 		return p.partitionTableScanToPBForFlash(ctx)
 	}
-	tsExec := tables.BuildTableScanFromInfos(p.Table, p.Columns)
+	tsExec := tables.BuildTableScanFromInfos(ctx.GetSessionVars().ConnectionID, p.Table, p.Columns)
 	tsExec.Desc = p.Desc
 	keepOrder := p.KeepOrder
 	tsExec.KeepOrder = &keepOrder
@@ -373,7 +373,7 @@ func (p *PhysicalIndexScan) ToPB(_ sessionctx.Context, _ kv.StoreType) (*tipb.Ex
 	idxExec := &tipb.IndexScan{
 		TableId:          p.Table.ID,
 		IndexId:          p.Index.ID,
-		Columns:          util.ColumnsToProto(columns, p.Table.PKIsHandle),
+		Columns:          util.ColumnsToProto(p.ctx.GetSessionVars().ConnectionID, columns, p.Table.PKIsHandle),
 		Desc:             p.Desc,
 		PrimaryColumnIds: pkColIds,
 	}

@@ -1930,11 +1930,11 @@ func getSequenceAllocator(allocs autoid.Allocators) (autoid.Allocator, error) {
 }
 
 // BuildTableScanFromInfos build tipb.TableScan with *model.TableInfo and *model.ColumnInfo.
-func BuildTableScanFromInfos(tableInfo *model.TableInfo, columnInfos []*model.ColumnInfo) *tipb.TableScan {
+func BuildTableScanFromInfos(connID uint64, tableInfo *model.TableInfo, columnInfos []*model.ColumnInfo) *tipb.TableScan {
 	pkColIds := TryGetCommonPkColumnIds(tableInfo)
 	tsExec := &tipb.TableScan{
 		TableId:          tableInfo.ID,
-		Columns:          util.ColumnsToProto(columnInfos, tableInfo.PKIsHandle),
+		Columns:          util.ColumnsToProto(connID, columnInfos, tableInfo.PKIsHandle),
 		PrimaryColumnIds: pkColIds,
 	}
 	if tableInfo.IsCommonHandle {
@@ -1948,7 +1948,7 @@ func BuildPartitionTableScanFromInfos(tableInfo *model.TableInfo, columnInfos []
 	pkColIds := TryGetCommonPkColumnIds(tableInfo)
 	tsExec := &tipb.PartitionTableScan{
 		TableId:          tableInfo.ID,
-		Columns:          util.ColumnsToProto(columnInfos, tableInfo.PKIsHandle),
+		Columns:          util.ColumnsToProto(0, columnInfos, tableInfo.PKIsHandle),
 		PrimaryColumnIds: pkColIds,
 		IsFastScan:       &fastScan,
 	}
