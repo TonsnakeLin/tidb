@@ -350,6 +350,7 @@ func (r *selectResult) updateCopRuntimeStats(ctx context.Context, copStats *copr
 	if r.rootPlanID <= 0 || r.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl == nil || callee == "" {
 		return
 	}
+	connID := r.ctx.GetSessionVars().ConnectionID
 
 	if copStats.ScanDetail != nil {
 		readKeys := copStats.ScanDetail.ProcessedKeys
@@ -370,7 +371,7 @@ func (r *selectResult) updateCopRuntimeStats(ctx context.Context, copStats *copr
 	r.stats.mergeCopRuntimeStats(copStats, respTime)
 
 	if copStats.ScanDetail != nil && len(r.copPlanIDs) > 0 {
-		r.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl.RecordScanDetail(r.copPlanIDs[len(r.copPlanIDs)-1], r.storeType.Name(), copStats.ScanDetail)
+		r.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl.RecordScanDetail(connID, r.copPlanIDs[len(r.copPlanIDs)-1], r.storeType.Name(), copStats.ScanDetail)
 	}
 
 	// If hasExecutor is true, it means the summary is returned from TiFlash.
@@ -391,14 +392,14 @@ func (r *selectResult) updateCopRuntimeStats(ctx context.Context, copStats *copr
 				detail.NumProducedRows != nil && detail.NumIterations != nil {
 				planID := r.copPlanIDs[i]
 				recorededPlanIDs[r.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl.
-					RecordOneCopTask(planID, r.storeType.Name(), callee, detail)] = 0
+					RecordOneCopTask(connID, planID, r.storeType.Name(), callee, detail)] = 0
 			}
 		}
 		num := uint64(0)
 		dummySummary := &tipb.ExecutorExecutionSummary{TimeProcessedNs: &num, NumProducedRows: &num, NumIterations: &num, ExecutorId: nil}
 		for _, planID := range r.copPlanIDs {
 			if _, ok := recorededPlanIDs[planID]; !ok {
-				r.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl.RecordOneCopTask(planID, r.storeType.Name(), callee, dummySummary)
+				r.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl.RecordOneCopTask(connID, planID, r.storeType.Name(), callee, dummySummary)
 			}
 		}
 	} else {
@@ -419,7 +420,7 @@ func (r *selectResult) updateCopRuntimeStats(ctx context.Context, copStats *copr
 				detail.NumProducedRows != nil && detail.NumIterations != nil {
 				planID := r.copPlanIDs[i]
 				r.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl.
-					RecordOneCopTask(planID, r.storeType.Name(), callee, detail)
+					RecordOneCopTask(connID, planID, r.storeType.Name(), callee, detail)
 			}
 		}
 	}

@@ -145,10 +145,10 @@ func TestCopRuntimeStats(t *testing.T) {
 	tableScanID := 1
 	aggID := 2
 	tableReaderID := 3
-	stats.RecordOneCopTask(tableScanID, "tikv", "8.8.8.8", mockExecutorExecutionSummary(1, 1, 1))
-	stats.RecordOneCopTask(tableScanID, "tikv", "8.8.8.9", mockExecutorExecutionSummary(2, 2, 2))
-	stats.RecordOneCopTask(aggID, "tikv", "8.8.8.8", mockExecutorExecutionSummary(3, 3, 3))
-	stats.RecordOneCopTask(aggID, "tikv", "8.8.8.9", mockExecutorExecutionSummary(4, 4, 4))
+	stats.RecordOneCopTask(0, tableScanID, "tikv", "8.8.8.8", mockExecutorExecutionSummary(1, 1, 1))
+	stats.RecordOneCopTask(0, tableScanID, "tikv", "8.8.8.9", mockExecutorExecutionSummary(2, 2, 2))
+	stats.RecordOneCopTask(0, aggID, "tikv", "8.8.8.8", mockExecutorExecutionSummary(3, 3, 3))
+	stats.RecordOneCopTask(0, aggID, "tikv", "8.8.8.9", mockExecutorExecutionSummary(4, 4, 4))
 	scanDetail := &util.ScanDetail{
 		TotalKeys:                 15,
 		ProcessedKeys:             10,
@@ -162,7 +162,7 @@ func TestCopRuntimeStats(t *testing.T) {
 	stats.RecordScanDetail(tableScanID, "tikv", scanDetail)
 	require.True(t, stats.ExistsCopStats(tableScanID))
 
-	cop := stats.GetOrCreateCopStats(tableScanID, "tikv")
+	cop := stats.GetOrCreateCopStats(0, tableScanID, "tikv")
 	expected := "tikv_task:{proc max:2ns, min:1ns, avg: 1ns, p80:2ns, p95:2ns, iters:3, tasks:2}, " +
 		"scan_detail: {total_process_keys: 10, total_process_keys_size: 10, total_keys: 15, rocksdb: {delete_skipped_count: 5, key_skipped_count: 1, block: {cache_hit_count: 10, read_count: 20, read_byte: 100 Bytes}}}"
 	require.Equal(t, expected, cop.String())
@@ -173,7 +173,7 @@ func TestCopRuntimeStats(t *testing.T) {
 	copStats[0].SetRowNum(10)
 	copStats[0].Record(time.Second, 10)
 	require.Equal(t, "time:1s, loops:2", copStats[0].String())
-	require.Equal(t, "tikv_task:{proc max:4ns, min:3ns, avg: 3ns, p80:4ns, p95:4ns, iters:7, tasks:2}", stats.GetOrCreateCopStats(aggID, "tikv").String())
+	require.Equal(t, "tikv_task:{proc max:4ns, min:3ns, avg: 3ns, p80:4ns, p95:4ns, iters:7, tasks:2}", stats.GetOrCreateCopStats(0, aggID, "tikv").String())
 
 	rootStats := stats.GetRootStats(tableReaderID)
 	require.NotNil(t, rootStats)
@@ -197,10 +197,10 @@ func TestCopRuntimeStatsForTiFlash(t *testing.T) {
 	tableScanID := 1
 	aggID := 2
 	tableReaderID := 3
-	stats.RecordOneCopTask(aggID, "tiflash", "8.8.8.8", mockExecutorExecutionSummaryForTiFlash(1, 1, 1, 1, "tablescan_"+strconv.Itoa(tableScanID)))
-	stats.RecordOneCopTask(aggID, "tiflash", "8.8.8.9", mockExecutorExecutionSummaryForTiFlash(2, 2, 2, 1, "tablescan_"+strconv.Itoa(tableScanID)))
-	stats.RecordOneCopTask(tableScanID, "tiflash", "8.8.8.8", mockExecutorExecutionSummaryForTiFlash(3, 3, 3, 1, "aggregation_"+strconv.Itoa(aggID)))
-	stats.RecordOneCopTask(tableScanID, "tiflash", "8.8.8.9", mockExecutorExecutionSummaryForTiFlash(4, 4, 4, 1, "aggregation_"+strconv.Itoa(aggID)))
+	stats.RecordOneCopTask(0, aggID, "tiflash", "8.8.8.8", mockExecutorExecutionSummaryForTiFlash(1, 1, 1, 1, "tablescan_"+strconv.Itoa(tableScanID)))
+	stats.RecordOneCopTask(0, aggID, "tiflash", "8.8.8.9", mockExecutorExecutionSummaryForTiFlash(2, 2, 2, 1, "tablescan_"+strconv.Itoa(tableScanID)))
+	stats.RecordOneCopTask(0, tableScanID, "tiflash", "8.8.8.8", mockExecutorExecutionSummaryForTiFlash(3, 3, 3, 1, "aggregation_"+strconv.Itoa(aggID)))
+	stats.RecordOneCopTask(0, tableScanID, "tiflash", "8.8.8.9", mockExecutorExecutionSummaryForTiFlash(4, 4, 4, 1, "aggregation_"+strconv.Itoa(aggID)))
 	scanDetail := &util.ScanDetail{
 		TotalKeys:                 10,
 		ProcessedKeys:             10,
@@ -213,7 +213,7 @@ func TestCopRuntimeStatsForTiFlash(t *testing.T) {
 	stats.RecordScanDetail(tableScanID, "tiflash", scanDetail)
 	require.True(t, stats.ExistsCopStats(tableScanID))
 
-	cop := stats.GetOrCreateCopStats(tableScanID, "tiflash")
+	cop := stats.GetOrCreateCopStats(0, tableScanID, "tiflash")
 	require.Equal(t, "tiflash_task:{proc max:2ns, min:1ns, avg: 1ns, p80:2ns, p95:2ns, iters:3, tasks:2, threads:2}", cop.String())
 
 	copStats := cop.stats["8.8.8.8"]
@@ -223,7 +223,7 @@ func TestCopRuntimeStatsForTiFlash(t *testing.T) {
 	copStats[0].Record(time.Second, 10)
 	require.Equal(t, "time:1s, loops:2, threads:1", copStats[0].String())
 	expected := "tiflash_task:{proc max:4ns, min:3ns, avg: 3ns, p80:4ns, p95:4ns, iters:7, tasks:2, threads:2}"
-	require.Equal(t, expected, stats.GetOrCreateCopStats(aggID, "tiflash").String())
+	require.Equal(t, expected, stats.GetOrCreateCopStats(0, aggID, "tiflash").String())
 
 	rootStats := stats.GetRootStats(tableReaderID)
 	require.NotNil(t, rootStats)

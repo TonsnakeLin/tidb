@@ -717,14 +717,16 @@ func (e *RuntimeStatsColl) GetCopStats(planID int) *CopRuntimeStats {
 }
 
 // GetOrCreateCopStats gets the CopRuntimeStats specified by planID, if not exists a new one will be created.
-func (e *RuntimeStatsColl) GetOrCreateCopStats(planID int, storeType string) *CopRuntimeStats {
+func (e *RuntimeStatsColl) GetOrCreateCopStats(connID uint64, planID int, storeType string) *CopRuntimeStats {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	copStats, ok := e.copStats[planID]
 	if !ok {
-		copStats = &CopRuntimeStats{
-			stats:      make(map[string][]*basicCopRuntimeStats),
-			scanDetail: &util.ScanDetail{},
+		copStats = getRuntiemStats(connID)
+		scanDetail := getScanDetail(connID)
+		*copStats = CopRuntimeStats{
+			stats:      getStatsMap(connID),
+			scanDetail: scanDetail,
 			storeType:  storeType,
 		}
 		e.copStats[planID] = copStats
@@ -743,20 +745,20 @@ func getPlanIDFromExecutionSummary(summary *tipb.ExecutorExecutionSummary) (int,
 }
 
 // RecordOneCopTask records a specific cop tasks's execution detail.
-func (e *RuntimeStatsColl) RecordOneCopTask(planID int, storeType string, address string, summary *tipb.ExecutorExecutionSummary) int {
+func (e *RuntimeStatsColl) RecordOneCopTask(connID uint64, planID int, storeType string, address string, summary *tipb.ExecutorExecutionSummary) int {
 	// for TiFlash cop response, ExecutorExecutionSummary contains executor id, so if there is a valid executor id in
 	// summary, use it overwrite the planID
 	if id, valid := getPlanIDFromExecutionSummary(summary); valid {
 		planID = id
 	}
-	copStats := e.GetOrCreateCopStats(planID, storeType)
+	copStats := e.GetOrCreateCopStats(connID, planID, storeType)
 	copStats.RecordOneCopTask(address, summary)
 	return planID
 }
 
 // RecordScanDetail records a specific cop tasks's cop detail.
-func (e *RuntimeStatsColl) RecordScanDetail(planID int, storeType string, detail *util.ScanDetail) {
-	copStats := e.GetOrCreateCopStats(planID, storeType)
+func (e *RuntimeStatsColl) RecordScanDetail(connID uint64, planID int, storeType string, detail *util.ScanDetail) {
+	copStats := e.GetOrCreateCopStats(connID, planID, storeType)
 	copStats.scanDetail.Merge(detail)
 }
 
@@ -1104,4 +1106,190 @@ func getUnit(d time.Duration) time.Duration {
 		return time.Microsecond
 	}
 	return time.Nanosecond
+}
+
+const (
+	slotNum    = 64
+	numPerSlot = 16
+)
+
+var UtilExecDetailsPkgObjs *UtilExecdetailsPackageObjectFactory
+
+func init() {
+	UtilExecDetailsPkgObjs = &UtilExecdetailsPackageObjectFactory{}
+	UtilExecDetailsPkgObjs.Init()
+}
+
+type UtilExecdetailsPackageObjectFactory struct {
+	statsMaps    [slotNum]*statsMapPool
+	runtimeStats [slotNum]*copRuntimeStatsPool
+	scanDetails  [slotNum]*scanDetailPool
+}
+
+func getStatsMap(connID uint64) map[string][]*basicCopRuntimeStats {
+	if connID == 0 {
+		return make(map[string][]*basicCopRuntimeStats)
+	}
+	p := UtilExecDetailsPkgObjs.statsMaps[connID%slotNum]
+	return p.getStatsMap(connID)
+}
+
+func getRuntiemStats(connID uint64) *CopRuntimeStats {
+	if connID == 0 {
+		return &CopRuntimeStats{}
+	}
+
+	p := UtilExecDetailsPkgObjs.runtimeStats[connID%slotNum]
+	return p.getRuntimeStats(connID)
+}
+
+func getScanDetail(connID uint64) *util.ScanDetail {
+	if connID == 0 {
+		return &util.ScanDetail{}
+	}
+
+	p := UtilExecDetailsPkgObjs.scanDetails[connID%slotNum]
+	return p.getScanDetail(connID)
+}
+
+//////////////////////////////////////////////////////////////////////
+func (f *UtilExecdetailsPackageObjectFactory) Reset(connID uint64) {
+	p := f.statsMaps[connID%slotNum]
+	p.Reset(connID)
+
+	p2 := f.runtimeStats[connID%slotNum]
+	p2.Reset(connID)
+
+	p3 := f.scanDetails[connID%slotNum]
+	p3.Reset(connID)
+}
+
+func (f *UtilExecdetailsPackageObjectFactory) Init() {
+	for i := 0; i < slotNum; i++ {
+		p := &statsMapPool{}
+		p.init()
+		f.statsMaps[i] = p
+
+		p2 := &copRuntimeStatsPool{}
+		p2.init()
+		f.runtimeStats[i] = p2
+
+		p3 := &scanDetailPool{}
+		p3.init()
+		f.scanDetails[i] = p3
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+type statsMapPool struct {
+	statsWraps [numPerSlot]*statsMapWrap
+}
+
+func (p *statsMapPool) init() {
+	for i := 0; i < numPerSlot; i++ {
+		w := &statsMapWrap{}
+		w.data = make(map[string][]*basicCopRuntimeStats)
+		p.statsWraps[i] = w
+	}
+}
+
+func (p *statsMapPool) Reset(connID uint64) {
+	for _, v := range p.statsWraps {
+		if atomic.LoadUint64(&v.connID) == connID {
+			atomic.StoreUint32(&v.inUse, 0)
+		}
+	}
+}
+
+func (p *statsMapPool) getStatsMap(connID uint64) map[string][]*basicCopRuntimeStats {
+	for _, w := range p.statsWraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			for k := range w.data {
+				delete(w.data, k)
+			}
+			return w.data
+		}
+	}
+	return make(map[string][]*basicCopRuntimeStats)
+}
+
+type statsMapWrap struct {
+	inUse  uint32
+	connID uint64
+	data   map[string][]*basicCopRuntimeStats
+}
+
+/////////////////////////////////////////////////////////////
+type copRuntimeStatsPool struct {
+	statsWraps [numPerSlot]*runtimeStatsWrap
+}
+
+func (p *copRuntimeStatsPool) init() {
+	for i := 0; i < numPerSlot; i++ {
+		w := &runtimeStatsWrap{}
+		w.data = &CopRuntimeStats{}
+		p.statsWraps[i] = w
+	}
+}
+
+func (p *copRuntimeStatsPool) Reset(connID uint64) {
+	for _, v := range p.statsWraps {
+		if atomic.LoadUint64(&v.connID) == connID {
+			atomic.StoreUint32(&v.inUse, 0)
+		}
+	}
+}
+
+func (p *copRuntimeStatsPool) getRuntimeStats(connID uint64) *CopRuntimeStats {
+	for _, w := range p.statsWraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.data
+		}
+	}
+	return &CopRuntimeStats{}
+}
+
+type runtimeStatsWrap struct {
+	inUse  uint32
+	connID uint64
+	data   *CopRuntimeStats
+}
+
+/////////////////////////////////////////////////////////////
+type scanDetailPool struct {
+	wraps [numPerSlot]*scanDetailWrap
+}
+
+func (p *scanDetailPool) init() {
+	for i := 0; i < numPerSlot; i++ {
+		w := &scanDetailWrap{}
+		w.data = &util.ScanDetail{}
+		p.wraps[i] = w
+	}
+}
+
+func (p *scanDetailPool) Reset(connID uint64) {
+	for _, v := range p.wraps {
+		if atomic.LoadUint64(&v.connID) == connID {
+			atomic.StoreUint32(&v.inUse, 0)
+		}
+	}
+}
+
+func (p *scanDetailPool) getScanDetail(connID uint64) *util.ScanDetail {
+	for _, w := range p.wraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.data
+		}
+	}
+	return &util.ScanDetail{}
+}
+
+type scanDetailWrap struct {
+	inUse  uint32
+	connID uint64
+	data   *util.ScanDetail
 }
