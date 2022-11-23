@@ -414,7 +414,7 @@ func ColumnsToProto(connID uint64, columns []*model.ColumnInfo, pkIsHandle bool)
 // ColumnToProto converts model.ColumnInfo to tipb.ColumnInfo.
 func ColumnToProto(connID uint64, c *model.ColumnInfo) *tipb.ColumnInfo {
 	pc := getTipbColumnInfo(connID)
-	pc = &tipb.ColumnInfo{
+	*pc = tipb.ColumnInfo{
 		ColumnId:  c.ID,
 		Collation: collate.RewriteNewCollationIDIfNeeded(int32(mysql.CollationNames[c.GetCollate()])),
 		ColumnLen: int32(c.GetFlen()),
