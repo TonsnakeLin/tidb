@@ -158,7 +158,7 @@ func GetExprSliceByCap(vars *variable.SessionVars, cap int) []Expression {
 		return make([]Expression, 0, cap)
 	}
 
-	p := vars.MixedMemPool.SliceAllocator.ExprColSlices.(*ExpressionSlicePool)
+	p := vars.MixedMemPool.SliceAllocator.ExprSlices.(*ExpressionSlicePool)
 	return p.GetExprSliceByCap(cap)
 }
 
