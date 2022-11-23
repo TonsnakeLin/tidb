@@ -414,7 +414,7 @@ func ColumnsToProto(connID uint64, columns []*model.ColumnInfo, pkIsHandle bool)
 // ColumnToProto converts model.ColumnInfo to tipb.ColumnInfo.
 func ColumnToProto(connID uint64, c *model.ColumnInfo) *tipb.ColumnInfo {
 	pc := getTipbColumnInfo(connID)
-	*pc = tipb.ColumnInfo{
+	pc = &tipb.ColumnInfo{
 		ColumnId:  c.ID,
 		Collation: collate.RewriteNewCollationIDIfNeeded(int32(mysql.CollationNames[c.GetCollate()])),
 		ColumnLen: int32(c.GetFlen()),
@@ -708,7 +708,6 @@ func createTLSCertificates(certpath string, keypath string, rsaKeySize int) erro
 const (
 	slotNum128   = 128
 	numPerSlot64 = 64
-	numPerSlot2  = 2
 )
 
 var UtilPkgObjFactory *UtilPackageObjectFactory
@@ -727,27 +726,14 @@ func getTipbColumnInfo(connID uint64) *tipb.ColumnInfo {
 	return p.getTipbColumnInfo(connID)
 }
 
-func GetProcessInfo(connID uint64) *ProcessInfo {
-	if connID == 0 {
-		return &ProcessInfo{}
-	}
-
-	p := UtilPkgObjFactory.processInfos[connID%slotNum128]
-	return p.getTipbColumnInfo(connID)
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////
 type UtilPackageObjectFactory struct {
 	tipbColInfos [slotNum128]*tipbColumnInfoPool
-	processInfos [slotNum128]*processInfoPool
 }
 
 func (f *UtilPackageObjectFactory) Reset(connID uint64) {
 	p := f.tipbColInfos[connID%slotNum128]
 	p.Reset(connID)
-
-	p2 := f.processInfos[connID%slotNum128]
-	p2.Reset(connID)
 }
 
 func (f *UtilPackageObjectFactory) Init() {
@@ -755,10 +741,6 @@ func (f *UtilPackageObjectFactory) Init() {
 		p := &tipbColumnInfoPool{}
 		p.init()
 		f.tipbColInfos[i] = p
-
-		p2 := &processInfoPool{}
-		p2.init()
-		f.processInfos[i] = p2
 	}
 }
 
@@ -797,41 +779,4 @@ type tipbColumnInfoWrap struct {
 	inUse  uint32
 	connID uint64
 	data   *tipb.ColumnInfo
-}
-
-////////////////////////////////////////////////////////////////////
-type processInfoPool struct {
-	wraps [numPerSlot2]*processInfoWrap
-}
-
-func (p *processInfoPool) init() {
-	for i := 0; i < numPerSlot2; i++ {
-		w := &processInfoWrap{}
-		w.data = &ProcessInfo{}
-		p.wraps[i] = w
-	}
-}
-
-func (p *processInfoPool) Reset(connID uint64) {
-	for _, v := range p.wraps {
-		if atomic.LoadUint64(&v.connID) == connID {
-			atomic.StoreUint32(&v.inUse, 0)
-		}
-	}
-}
-
-func (p *processInfoPool) getTipbColumnInfo(connID uint64) *ProcessInfo {
-	for _, w := range p.wraps {
-		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
-			atomic.StoreUint64(&w.connID, connID)
-			return w.data
-		}
-	}
-	return &ProcessInfo{}
-}
-
-type processInfoWrap struct {
-	inUse  uint32
-	connID uint64
-	data   *ProcessInfo
 }

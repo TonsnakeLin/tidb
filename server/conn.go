@@ -2738,7 +2738,6 @@ func resetGlobalObjectFactories(connID uint64) {
 	types.TypesObjFactory.Reset(connID)
 	execdetails.UtilExecDetailsPkgObjs.Reset(connID)
 	tidbutil.UtilPkgObjFactory.Reset(connID)
-	memory.MemoryPkgObjFactory.Reset(connID)
 }
 
 func resetSessionCachedPool(vars *variable.SessionVars) {
