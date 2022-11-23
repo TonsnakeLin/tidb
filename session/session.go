@@ -1671,7 +1671,8 @@ func (s *session) SetProcessInfo(sql string, t time.Time, command byte, maxExecu
 	if _, ok := p.(plannercore.PhysicalPlan); ok {
 		canExplainAnalyze = true
 	}
-	pi := util.ProcessInfo{
+	pi := util.GetProcessInfo(s.sessionVars.ConnectionID)
+	*pi = util.ProcessInfo{
 		ID:                    s.sessionVars.ConnectionID,
 		Port:                  s.sessionVars.Port,
 		DB:                    s.sessionVars.CurrentDB,
@@ -1719,7 +1720,7 @@ func (s *session) SetProcessInfo(sql string, t time.Time, command byte, maxExecu
 		pi.User = s.sessionVars.User.Username
 		pi.Host = s.sessionVars.User.Hostname
 	}
-	s.processInfo.Store(&pi)
+	s.processInfo.Store(pi)
 }
 
 func (s *session) getOomAlarmVariablesInfo() util.OOMAlarmVariablesInfo {
