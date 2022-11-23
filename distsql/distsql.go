@@ -17,6 +17,7 @@ package distsql
 import (
 	"context"
 	"strconv"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -263,6 +264,10 @@ type DistsqlPackageObjectFactory struct {
 	selResMapPool *selectResultMapPool
 }
 
+func (f *DistsqlPackageObjectFactory) Reset() {
+	f.selResMapPool.Reset()
+}
+
 func (f *DistsqlPackageObjectFactory) Init() {
 	selResMapPool := &selectResultMapPool{}
 	selResMapPool.init()
@@ -270,13 +275,41 @@ func (f *DistsqlPackageObjectFactory) Init() {
 }
 
 type selectResultMapPool struct {
-	backoffSleep     map[string]time.Duration
-	recorededPlanIDs map[int]int
+	backoffSleeps    [4]*backOffMapWrap
+	recorededPlanIDs [4]*recorededPlanIDMapWrap
 }
 
-func (p selectResultMapPool) init() {
-	p.backoffSleep = make(map[string]time.Duration)
-	p.recorededPlanIDs = make(map[int]int)
+func (p *selectResultMapPool) init() {
+	for i := 0; i < 4; i++ {
+		w := &backOffMapWrap{}
+		w.backoffSleep = make(map[string]time.Duration)
+		p.backoffSleeps[i] = w
+	}
+	for i := 0; i < 4; i++ {
+		w := &recorededPlanIDMapWrap{}
+		w.recorededPlanID = make(map[int]int)
+		p.recorededPlanIDs[i] = w
+	}
+}
+
+func (p *selectResultMapPool) Reset() {
+	for _, v := range p.backoffSleeps {
+		atomic.StoreUint32(&v.inUse, 0)
+	}
+
+	for _, v := range p.recorededPlanIDs {
+		atomic.StoreUint32(&v.inUse, 0)
+	}
+}
+
+type backOffMapWrap struct {
+	inUse        uint32
+	backoffSleep map[string]time.Duration
+}
+
+type recorededPlanIDMapWrap struct {
+	inUse           uint32
+	recorededPlanID map[int]int
 }
 
 func getBackoffSleepMap(f any) map[string]time.Duration {
@@ -285,10 +318,15 @@ func getBackoffSleepMap(f any) map[string]time.Duration {
 	}
 	df := f.(*DistsqlPackageObjectFactory)
 
-	for k := range df.selResMapPool.backoffSleep {
-		delete(df.selResMapPool.backoffSleep, k)
+	for _, w := range df.selResMapPool.backoffSleeps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			for k := range w.backoffSleep {
+				delete(w.backoffSleep, k)
+			}
+			return w.backoffSleep
+		}
 	}
-	return df.selResMapPool.backoffSleep
+	return make(map[string]time.Duration)
 }
 
 func getRecorededPlanIDsMap(f any) map[int]int {
@@ -296,8 +334,13 @@ func getRecorededPlanIDsMap(f any) map[int]int {
 		return make(map[int]int)
 	}
 	df := f.(*DistsqlPackageObjectFactory)
-	for k := range df.selResMapPool.recorededPlanIDs {
-		delete(df.selResMapPool.recorededPlanIDs, k)
+	for _, w := range df.selResMapPool.recorededPlanIDs {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			for k := range w.recorededPlanID {
+				delete(w.recorededPlanID, k)
+			}
+			return w.recorededPlanID
+		}
 	}
-	return df.selResMapPool.recorededPlanIDs
+	return make(map[int]int)
 }

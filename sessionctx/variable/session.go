@@ -1320,6 +1320,27 @@ func (s *SessionVars) SetMixedMemPool(poolSet *arena.MemPoolSet) {
 	s.MixedMemPool = poolSet
 }
 
+func GetIntSliceByCap(s *SessionVars, cap int) []int {
+	if s.MixedMemPool == nil {
+		return make([]int, 0, cap)
+	}
+	return s.MixedMemPool.SliceAllocator.IntSlice.GetExprSliceByCap(cap)
+}
+
+func GetIntSliceByLen(s *SessionVars, len int) []int {
+	if s.MixedMemPool == nil {
+		return make([]int, len)
+	}
+	return s.MixedMemPool.SliceAllocator.IntSlice.GetExprSliceByLen(len)
+}
+
+func GetInt2IntSliceMap(s *SessionVars) map[int][]int {
+	if s.MixedMemPool == nil {
+		return make(map[int][]int)
+	}
+	return s.MixedMemPool.MapAlloctor.IntToIntSliceMaps.GetOneMap()
+}
+
 // GetNewChunkWithCapacity Attempt to request memory from the chunk pool
 // thread safety
 func (s *SessionVars) GetNewChunkWithCapacity(fields []*types.FieldType, capacity int, maxCachesize int, pool chunk.Allocator) *chunk.Chunk {

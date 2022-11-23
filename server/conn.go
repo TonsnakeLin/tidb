@@ -1097,29 +1097,10 @@ func (cc *clientConn) Run(ctx context.Context) {
 		}
 	}()
 	sessVars := cc.ctx.GetSessionVars()
-	if cc.memPoolSet.SliceAllocator.ExprSlices == nil {
-		esp := &expression.ExpressionSlicePool{}
-		esp.Init()
-		cc.memPoolSet.SliceAllocator.ExprSlices = esp
-	}
-	if cc.memPoolSet.SliceAllocator.ExprColSlices == nil {
-		csp := &expression.ExprColumnSlicePool{}
-		csp.Init()
-		cc.memPoolSet.SliceAllocator.ExprColSlices = csp
-	}
-	if cc.memPoolSet.SliceAllocator.UtilRangeSlice == nil {
-		rs := &ranger.RangeSlicePool{}
-		rs.Init()
-		cc.memPoolSet.SliceAllocator.UtilRangeSlice = rs
-	}
-	if cc.memPoolSet.SliceAllocator.VisitInfoSlices == nil {
-		vsp := &core.VisitInfoSlicePool{}
-		vsp.Init()
-		cc.memPoolSet.SliceAllocator.VisitInfoSlices = vsp
-	}
+	cc.setCachedPoolInMixedPool()
 	sessVars.SetMixedMemPool(cc.memPoolSet)
 	sessVars.IsClientConn = true
-	setSessionCachedPool(sessVars)
+	setCachedPoolInVars(sessVars)
 	// Usually, client connection status changes between [dispatching] <=> [reading].
 	// When some event happens, server may notify this client connection by setting
 	// the status to special values, for example: kill or graceful shutdown.
@@ -1134,12 +1115,7 @@ func (cc *clientConn) Run(ctx context.Context) {
 		}
 
 		cc.alloc.Reset()
-		cc.memPoolSet.ResetMemPoolSet()
-		cc.memPoolSet.SliceAllocator.ExprSlices.(*expression.ExpressionSlicePool).Reset()
-		cc.memPoolSet.SliceAllocator.ExprColSlices.(*expression.ExprColumnSlicePool).Reset()
-		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSlicePool).Reset()
-		cc.memPoolSet.SliceAllocator.VisitInfoSlices.(*core.VisitInfoSlicePool).Reset()
-		resetObjectFactories(sessVars.ConnectionID)
+		cc.ResetMemPoolSet(sessVars)
 		// close connection when idle time is more than wait_timeout
 		waitTimeout := cc.getSessionVarsWaitTimeout(ctx)
 		cc.pkt.setReadTimeout(time.Duration(waitTimeout) * time.Second)
@@ -2716,16 +2692,30 @@ func (cc getLastStmtInConn) PProfLabel() string {
 	}
 }
 
-func resetObjectFactories(connID uint64) {
-	executor.ExecutorObjFactory.Reset(connID)
-	expression.ExpressionObjFactory.Reset(connID)
-	ast.AstObjFactory.Reset(connID)
-	serverObjFactory.Reset(connID)
-	session.SessionObjFactory.Reset(connID)
-	types.TypesObjFactory.Reset(connID)
+func (cc *clientConn) setCachedPoolInMixedPool() {
+	if cc.memPoolSet.SliceAllocator.ExprSlices == nil {
+		esp := &expression.ExpressionSlicePool{}
+		esp.Init()
+		cc.memPoolSet.SliceAllocator.ExprSlices = esp
+	}
+	if cc.memPoolSet.SliceAllocator.ExprColSlices == nil {
+		csp := &expression.ExprColumnSlicePool{}
+		csp.Init()
+		cc.memPoolSet.SliceAllocator.ExprColSlices = csp
+	}
+	if cc.memPoolSet.SliceAllocator.UtilRangeSlice == nil {
+		rs := &ranger.RangeSlicePool{}
+		rs.Init()
+		cc.memPoolSet.SliceAllocator.UtilRangeSlice = rs
+	}
+	if cc.memPoolSet.SliceAllocator.VisitInfoSlices == nil {
+		vsp := &core.VisitInfoSlicePool{}
+		vsp.Init()
+		cc.memPoolSet.SliceAllocator.VisitInfoSlices = vsp
+	}
 }
 
-func setSessionCachedPool(vars *variable.SessionVars) {
+func setCachedPoolInVars(vars *variable.SessionVars) {
 	execPkgMapFacory := &executor.ExecutorPkgMapFactory{}
 	execPkgMapFacory.Init()
 	vars.ExecutorPkgMaps = execPkgMapFacory
@@ -2737,4 +2727,33 @@ func setSessionCachedPool(vars *variable.SessionVars) {
 	distsqlPkgObjFactory := &distsql.DistsqlPackageObjectFactory{}
 	distsqlPkgObjFactory.Init()
 	vars.DisqlPkgObjFactory = distsqlPkgObjFactory
+}
+
+func resetGlobalObjectFactories(connID uint64) {
+	executor.ExecutorObjFactory.Reset(connID)
+	expression.ExpressionObjFactory.Reset(connID)
+	ast.AstObjFactory.Reset(connID)
+	serverObjFactory.Reset(connID)
+	session.SessionObjFactory.Reset(connID)
+	types.TypesObjFactory.Reset(connID)
+}
+
+func resetSessionCachedPool(vars *variable.SessionVars) {
+	vars.ExecutorPkgMaps.(*executor.ExecutorPkgMapFactory).Reset()
+	vars.StmtCtxPkgFactory.Reset()
+	vars.DisqlPkgObjFactory.(*distsql.DistsqlPackageObjectFactory).Reset()
+}
+
+func (cc *clientConn) ResetMemPoolSet(vars *variable.SessionVars) {
+	if cc.memPoolSet != nil {
+		cc.memPoolSet.ResetMemPoolSet()
+		cc.memPoolSet.SliceAllocator.ExprSlices.(*expression.ExpressionSlicePool).Reset()
+		cc.memPoolSet.SliceAllocator.ExprColSlices.(*expression.ExprColumnSlicePool).Reset()
+		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSlicePool).Reset()
+		cc.memPoolSet.SliceAllocator.VisitInfoSlices.(*core.VisitInfoSlicePool).Reset()
+	}
+
+	resetSessionCachedPool(vars)
+
+	resetGlobalObjectFactories(vars.ConnectionID)
 }

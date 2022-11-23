@@ -24,38 +24,72 @@ import (
 	"github.com/pingcap/tidb/types"
 )
 
-type IntSliceAllocator struct {
-	slice    []int
-	offset   int
+type IntSlicePool struct {
+	slices [16]*intSlice
+}
+
+func (p *IntSlicePool) Init() {
+	for i := 0; i < 16; i++ {
+		es := &intSlice{}
+		es.initIntSlice((i/2 + 1) * 16)
+		p.slices[i] = es
+	}
+}
+
+func (p *IntSlicePool) Reset() {
+	for _, es := range p.slices {
+		es.Reset()
+	}
+}
+
+func (p *IntSlicePool) GetExprSliceByCap(cap int) []int {
+	for _, es := range p.slices {
+		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
+			return es.GetExprSliceByCap(cap)
+		}
+	}
+
+	return make([]int, 0, cap)
+}
+
+func (p *IntSlicePool) GetExprSliceByLen(len int) []int {
+	for _, es := range p.slices {
+		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
+			return es.GetExprSliceByLen(len)
+		}
+	}
+
+	return make([]int, len)
+}
+
+type intSlice struct {
+	data     []int
 	capacity int
+	inUse    uint32
 }
 
-func (sa *IntSliceAllocator) InitIntSlice() {
-	sa.slice = make([]int, 4096, 4096)
-	sa.offset = 0
-	sa.capacity = 4096
+func (es *intSlice) initIntSlice(cap int) {
+	es.data = make([]int, cap)
+	es.inUse = 0
+	es.capacity = cap
 }
 
-func (sa *IntSliceAllocator) GetIntSliceByCap(cap int) []int {
-	origOffset := sa.offset
-	if origOffset+cap > sa.capacity {
+func (es *intSlice) Reset() {
+	es.inUse = 0
+}
+
+func (es *intSlice) GetExprSliceByCap(cap int) []int {
+	if cap > es.capacity {
 		return make([]int, 0, cap)
 	}
-	sa.offset += cap
-	return sa.slice[origOffset : origOffset : origOffset+cap]
+	return es.data[0:0:cap]
 }
 
-func (sa *IntSliceAllocator) GetIntSliceByLen(len int) []int {
-	origOffset := sa.offset
-	if origOffset+len > sa.capacity {
+func (es *intSlice) GetExprSliceByLen(len int) []int {
+	if len > es.capacity {
 		return make([]int, len)
 	}
-	sa.offset += len
-	return sa.slice[origOffset : origOffset+len : origOffset+len]
-}
-
-func (sa *IntSliceAllocator) Reset() {
-	sa.offset = 0
+	return es.data[0:len:len]
 }
 
 type ByteSliceAllocator struct {
@@ -325,8 +359,9 @@ type SliceAlloctor struct {
 	UtilRangeSlice  any
 	VisitInfoSlices any
 	DatumSlices     *types.DatumSlicePool
+	IntSlice        *IntSlicePool
 	/*
-		IntSlice        *IntSliceAllocator
+
 		ByteSlice       *ByteSliceAllocator
 
 		FieldTypeSlice  *types.FieldTypeSliceAllocator
@@ -341,6 +376,7 @@ type SliceAlloctor struct {
 
 func (sa *SliceAlloctor) Reset() {
 	sa.DatumSlices.Reset()
+	sa.IntSlice.Reset()
 	/*
 
 		sa.FieldTypeSlice.Reset()
@@ -357,18 +393,21 @@ func (sa *SliceAlloctor) Reset() {
 func (sa *SliceAlloctor) InitSliceAlloctor() {
 	sa.DatumSlices = &types.DatumSlicePool{}
 	sa.DatumSlices.Init()
+
+	sa.IntSlice = &IntSlicePool{}
+	sa.IntSlice.Init()
 	/*
 
 			sa.FieldTypeSlice = &types.FieldTypeSliceAllocator{}
 			sa.FieldNameSlice = &types.FieldNameSliceAllocator{}
 			sa.ModelColumnInfo = &model.ModelColumnInfoSliceAllocator{}
-			sa.IntSlice = &IntSliceAllocator{}
+
 			sa.ByteSlice = &ByteSliceAllocator{}
 			sa.DatumSlice.InitDatumSlice()
 			sa.FieldTypeSlice.InitFieldTypeSlice()
 			sa.FieldNameSlice.InitFieldNameSlice()
 			sa.ModelColumnInfo.InitColumnInfoSlice()
-			sa.IntSlice.InitIntSlice()
+
 			sa.ByteSlice.InitByteSlice()
 
 
@@ -380,16 +419,20 @@ func (sa *SliceAlloctor) InitSliceAlloctor() {
 
 type MapAllocator struct {
 	strToDurationMaps *StringToDurationMapPool
+	IntToIntSliceMaps *IntToIntSliceMapPool
 }
 
 func (ma *MapAllocator) InitMapAllocator() {
-
 	ma.strToDurationMaps = &StringToDurationMapPool{}
 	ma.strToDurationMaps.Init()
+
+	ma.IntToIntSliceMaps = &IntToIntSliceMapPool{}
+	ma.IntToIntSliceMaps.Init()
 }
 
 func (ma *MapAllocator) Reset() {
-
+	ma.strToDurationMaps.Reset()
+	ma.IntToIntSliceMaps.Reset()
 }
 
 type StringToDurationMapPool struct {
@@ -402,6 +445,10 @@ func (p *StringToDurationMapPool) Init() {
 		w.Init()
 		p.maps[i] = w
 	}
+}
+
+func (p *StringToDurationMapPool) Reset() {
+
 }
 
 func (p *StringToDurationMapPool) GetOneMap() map[string]time.Duration {
@@ -423,4 +470,48 @@ type strToDurationMapWrap struct {
 
 func (m *strToDurationMapWrap) Init() {
 	m.data = make(map[string]time.Duration)
+}
+
+/////////////////////////////////////////////////////////////////////
+type IntToIntSliceMapPool struct {
+	maps [16]*intToIntSliceMapWrap
+}
+
+func (p *IntToIntSliceMapPool) Init() {
+	for i := 0; i < 16; i++ {
+		w := &intToIntSliceMapWrap{}
+		w.Init()
+		p.maps[i] = w
+	}
+}
+
+func (p *IntToIntSliceMapPool) Reset() {
+	for _, w := range p.maps {
+		w.reset()
+	}
+}
+
+func (p *IntToIntSliceMapPool) GetOneMap() map[int][]int {
+	for _, w := range p.maps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			for k := range w.data {
+				delete(w.data, k)
+			}
+			return w.data
+		}
+	}
+	return make(map[int][]int)
+}
+
+type intToIntSliceMapWrap struct {
+	inUse uint32
+	data  map[int][]int
+}
+
+func (m *intToIntSliceMapWrap) Init() {
+	m.data = make(map[int][]int, 64)
+}
+
+func (m *intToIntSliceMapWrap) reset() {
+	atomic.StoreUint32(&m.inUse, 0)
 }

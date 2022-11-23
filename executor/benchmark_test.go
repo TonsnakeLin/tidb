@@ -2000,7 +2000,7 @@ func benchmarkLimitExec(b *testing.B, cas *limitCase) {
 		proj := &ProjectionExec{
 			baseExecutor:  newBaseExecutor(cas.ctx, expression.NewSchema(usedCols...), 0, limit),
 			numWorkers:    1,
-			evaluatorSuit: expression.NewEvaluatorSuite(exprs, false),
+			evaluatorSuit: expression.NewEvaluatorSuite(nil, exprs, false),
 		}
 		exec = proj
 	}

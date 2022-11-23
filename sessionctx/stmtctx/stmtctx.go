@@ -1138,6 +1138,10 @@ func (f *StmtCtxObjectFactory) Init() {
 	}
 }
 
+func (f *StmtCtxObjectFactory) Reset() {
+
+}
+
 func getCopTasksDetails(f *StmtCtxObjectFactory, n int) *CopTasksDetails {
 	if f == nil {
 		return &CopTasksDetails{

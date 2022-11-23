@@ -597,7 +597,7 @@ func buildProjectionExec(ctx sessionctx.Context, exprs []expression.Expression, 
 	return &ProjectionExec{
 		baseExecutor:  newBaseExecutor(ctx, src.Schema(), 0, src),
 		numWorkers:    int64(numWorkers),
-		evaluatorSuit: expression.NewEvaluatorSuite(exprs, false),
+		evaluatorSuit: expression.NewEvaluatorSuite(ctx.GetSessionVars(), exprs, false),
 	}
 }
 

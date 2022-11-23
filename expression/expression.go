@@ -34,6 +34,7 @@ import (
 	"github.com/pingcap/tidb/parser/terror"
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
+	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/generatedexpr"
@@ -52,8 +53,9 @@ const (
 	sliceNum           int  = 16
 	exprNumPerSlice    int  = 64
 
-	slotNum    = 64
-	numPerSlot = 64
+	slotNum      = 64
+	numPerSlot   = 64
+	numPerSlot16 = 16
 )
 
 var ExpressionObjFactory *ExpressionObjectFactory
@@ -62,17 +64,23 @@ func init() {
 	_ExprConstants := &ExprConstantPool{}
 	_ExprConstants.Init()
 
+	_EvaluatorSuites := &ExprEvaluatorSuitePool{}
+	_EvaluatorSuites.Init()
+
 	ExpressionObjFactory = &ExpressionObjectFactory{
-		ExprConstants: _ExprConstants,
+		ExprConstants:       _ExprConstants,
+		ExprEvaluatorSuites: _EvaluatorSuites,
 	}
 }
 
 type ExpressionObjectFactory struct {
-	ExprConstants *ExprConstantPool
+	ExprConstants       *ExprConstantPool
+	ExprEvaluatorSuites *ExprEvaluatorSuitePool
 }
 
 func (f *ExpressionObjectFactory) Reset(connID uint64) {
 	f.ExprConstants.Reset(connID)
+	f.ExprEvaluatorSuites.Reset(connID)
 }
 
 type ExprConstantPool struct {
@@ -144,8 +152,26 @@ func (w *ExprConstantWrapper) Reset() {
 	atomic.StoreInt32(&w.inUse, 0)
 }
 
+////////////////////////////////////////////////////////////////////////////////////
+func GetExprSliceByCap(vars *variable.SessionVars, cap int) []Expression {
+	if vars.MixedMemPool == nil {
+		return make([]Expression, 0, cap)
+	}
+
+	p := vars.MixedMemPool.SliceAllocator.ExprColSlices.(*ExpressionSlicePool)
+	return p.GetExprSliceByCap(cap)
+}
+
+func GetExprSliceByLen(vars *variable.SessionVars, len int) []Expression {
+	if vars.MixedMemPool == nil {
+		return make([]Expression, len)
+	}
+
+	p := vars.MixedMemPool.SliceAllocator.ExprColSlices.(*ExpressionSlicePool)
+	return p.GetExprSliceByLen(len)
+}
+
 type ExpressionSlicePool struct {
-	mutex sync.Mutex
 	exprs [sliceNum]*expressionSlice
 }
 
@@ -158,34 +184,26 @@ func (p *ExpressionSlicePool) Init() {
 }
 
 func (p *ExpressionSlicePool) Reset() {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	for _, es := range p.exprs {
 		es.Reset()
 	}
 }
 
 func (p *ExpressionSlicePool) GetExprSliceByCap(cap int) []Expression {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	for _, es := range p.exprs {
-		if es.inUse {
-			continue
+		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
+			return es.GetExprSliceByCap(cap)
 		}
-		return es.GetExprSliceByCap(cap)
 	}
 
 	return make([]Expression, 0, cap)
 }
 
 func (p *ExpressionSlicePool) GetExprSliceByLen(len int) []Expression {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	for _, es := range p.exprs {
-		if es.inUse {
-			continue
+		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
+			return es.GetExprSliceByLen(len)
 		}
-		return es.GetExprSliceByLen(len)
 	}
 
 	return make([]Expression, len)
@@ -194,24 +212,23 @@ func (p *ExpressionSlicePool) GetExprSliceByLen(len int) []Expression {
 type expressionSlice struct {
 	exprs         []Expression
 	exprsCapacity int
-	inUse         bool
+	inUse         uint32
 }
 
 func (es *expressionSlice) InitExprSlice() {
 	es.exprs = make([]Expression, exprNumPerSlice)
-	es.inUse = false
+	es.inUse = 0
 	es.exprsCapacity = exprNumPerSlice
 }
 
 func (es *expressionSlice) Reset() {
-	es.inUse = false
+	es.inUse = 0
 }
 
 func (es *expressionSlice) GetExprSliceByCap(cap int) []Expression {
 	if cap > es.exprsCapacity {
 		return make([]Expression, 0, cap)
 	}
-	es.inUse = true
 	return es.exprs[0:0:cap]
 }
 
@@ -219,7 +236,6 @@ func (es *expressionSlice) GetExprSliceByLen(len int) []Expression {
 	if len > es.exprsCapacity {
 		return make([]Expression, len)
 	}
-	es.inUse = true
 	return es.exprs[0:len:len]
 }
 

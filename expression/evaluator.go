@@ -15,7 +15,10 @@
 package expression
 
 import (
+	"sync/atomic"
+
 	"github.com/pingcap/tidb/sessionctx"
+	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/util/chunk"
 )
 
@@ -85,13 +88,14 @@ type EvaluatorSuite struct {
 
 // NewEvaluatorSuite creates an EvaluatorSuite to evaluate all the exprs.
 // avoidColumnEvaluator can be removed after column pool is supported.
-func NewEvaluatorSuite(exprs []Expression, avoidColumnEvaluator bool) *EvaluatorSuite {
-	e := &EvaluatorSuite{}
+func NewEvaluatorSuite(vars *variable.SessionVars, exprs []Expression, avoidColumnEvaluator bool) *EvaluatorSuite {
+	e := ExpressionObjFactory.ExprEvaluatorSuites.GetObjectPointer(vars.ConnectionID, vars.IsClientConn)
+	*e = EvaluatorSuite{}
 
 	for i := 0; i < len(exprs); i++ {
 		if col, isCol := exprs[i].(*Column); isCol && !avoidColumnEvaluator {
 			if e.columnEvaluator == nil {
-				e.columnEvaluator = &columnEvaluator{inputIdxToOutputIdxes: make(map[int][]int)}
+				e.columnEvaluator = &columnEvaluator{inputIdxToOutputIdxes: variable.GetInt2IntSliceMap(vars)}
 			}
 			inputIdx, outputIdx := col.Index, i
 			e.columnEvaluator.inputIdxToOutputIdxes[inputIdx] = append(e.columnEvaluator.inputIdxToOutputIdxes[inputIdx], outputIdx)
@@ -99,8 +103,8 @@ func NewEvaluatorSuite(exprs []Expression, avoidColumnEvaluator bool) *Evaluator
 		}
 		if e.defaultEvaluator == nil {
 			e.defaultEvaluator = &defaultEvaluator{
-				outputIdxes: make([]int, 0, len(exprs)),
-				exprs:       make([]Expression, 0, len(exprs)),
+				outputIdxes: variable.GetIntSliceByCap(vars, len(exprs)),
+				exprs:       GetExprSliceByCap(vars, len(exprs)),
 			}
 		}
 		e.defaultEvaluator.exprs = append(e.defaultEvaluator.exprs, exprs[i])
@@ -132,4 +136,73 @@ func (e *EvaluatorSuite) Run(ctx sessionctx.Context, input, output *chunk.Chunk)
 		return e.columnEvaluator.run(ctx, input, output)
 	}
 	return nil
+}
+
+type ExprEvaluatorSuitePool struct {
+	instances [slotNum]*exprEvaluatorSuiteInstance
+}
+
+func (p *ExprEvaluatorSuitePool) Init() {
+	for i := 0; i < slotNum; i++ {
+		ins := &exprEvaluatorSuiteInstance{}
+		ins.Init()
+		p.instances[i] = ins
+	}
+}
+
+func (p *ExprEvaluatorSuitePool) GetObjectPointer(connID uint64, useCache bool) *EvaluatorSuite {
+	if !useCache {
+		return &EvaluatorSuite{}
+	}
+	ins := p.instances[connID%slotNum]
+	return ins.getObjectPointer(connID)
+}
+
+func (p *ExprEvaluatorSuitePool) Reset(connID uint64) {
+	ins := p.instances[connID%slotNum]
+	ins.reset(connID)
+}
+
+type exprEvaluatorSuiteInstance struct {
+	wrappers [numPerSlot16]*exprEvaluatorSuiteWrapper
+}
+
+func (ins *exprEvaluatorSuiteInstance) Init() {
+	for i := 0; i < numPerSlot16; i++ {
+		e := &EvaluatorSuite{}
+		w := &exprEvaluatorSuiteWrapper{
+			cachedObj: e,
+		}
+		ins.wrappers[i] = w
+	}
+}
+
+func (ins *exprEvaluatorSuiteInstance) getObjectPointer(connID uint64) *EvaluatorSuite {
+	for _, w := range ins.wrappers {
+		if atomic.CompareAndSwapInt32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.cachedObj
+		}
+	}
+
+	return &EvaluatorSuite{}
+}
+
+func (ins *exprEvaluatorSuiteInstance) reset(connID uint64) {
+	for _, w := range ins.wrappers {
+		if atomic.LoadUint64(&w.connID) == connID {
+			w.Reset()
+		}
+	}
+}
+
+type exprEvaluatorSuiteWrapper struct {
+	inUse     int32
+	connID    uint64
+	cachedObj *EvaluatorSuite
+}
+
+func (w *exprEvaluatorSuiteWrapper) Reset() {
+	atomic.StoreUint64(&w.connID, 0)
+	atomic.StoreInt32(&w.inUse, 0)
 }
