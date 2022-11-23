@@ -755,6 +755,10 @@ func (f *UtilPackageObjectFactory) Init() {
 		p := &tipbColumnInfoPool{}
 		p.init()
 		f.tipbColInfos[i] = p
+
+		p2 := &processInfoPool{}
+		p2.init()
+		f.processInfos[i] = p2
 	}
 }
 
