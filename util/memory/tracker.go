@@ -158,6 +158,20 @@ func NewTracker(label int, bytesLimit int64) *Tracker {
 	return t
 }
 
+func NewTrackerWithConnID(connID uint64, label int, bytesLimit int64) *Tracker {
+	t := getTracker(connID)
+	*t = Tracker{
+		label: label,
+	}
+	t.bytesLimit.Store(&bytesLimits{
+		bytesHardLimit: bytesLimit,
+		bytesSoftLimit: int64(float64(bytesLimit) * softScale),
+	})
+	t.actionMuForHardLimit.actionOnExceed = &LogOnExceed{}
+	t.isGlobal = false
+	return t
+}
+
 // NewGlobalTracker creates a global tracker, its isGlobal is default as true
 func NewGlobalTracker(label int, bytesLimit int64) *Tracker {
 	t := &Tracker{
@@ -891,6 +905,15 @@ func (f *MemoryPackageObjectFactory) GetInt2TracSliceMap(connID uint64) map[int]
 	}
 	p := f.int2TracSlicePools[connID%slotNum]
 	return p.getInt2TrackerSliceMap(connID)
+}
+
+func getTracker(connID uint64) *Tracker {
+	if connID == 0 {
+		return &Tracker{}
+	}
+
+	p := MemoryPkgObjFactory.trackerPools[connID%slotNum128]
+	return p.getTracker(connID)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
