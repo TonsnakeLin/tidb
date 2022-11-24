@@ -163,11 +163,17 @@ func NewTrackerWithConnID(connID uint64, label int, bytesLimit int64) *Tracker {
 	*t = Tracker{
 		label: label,
 	}
-	t.bytesLimit.Store(&bytesLimits{
+
+	b := getBytesLimits(connID)
+	*b = bytesLimits{
 		bytesHardLimit: bytesLimit,
 		bytesSoftLimit: int64(float64(bytesLimit) * softScale),
-	})
-	t.actionMuForHardLimit.actionOnExceed = &LogOnExceed{}
+	}
+	t.bytesLimit.Store(b)
+
+	l := getLogOnExceed(connID)
+	*l = LogOnExceed{}
+	t.actionMuForHardLimit.actionOnExceed = l
 	t.isGlobal = false
 	return t
 }
@@ -876,6 +882,8 @@ func init() {
 type MemoryPackageObjectFactory struct {
 	int2TracSlicePools [slotNum]*int2TrackerSlicePool
 	trackerPools       [slotNum128]*trackerPool
+	bytesLimitsPools   [slotNum128]*bytesLimitsPool
+	logOnExceedPools   [slotNum128]*logOnExceedPool
 }
 
 func (f *MemoryPackageObjectFactory) Init() {
@@ -888,6 +896,14 @@ func (f *MemoryPackageObjectFactory) Init() {
 		p := &trackerPool{}
 		p.init()
 		f.trackerPools[i] = p
+
+		p2 := &bytesLimitsPool{}
+		p2.init()
+		f.bytesLimitsPools[i] = p2
+
+		p3 := &logOnExceedPool{}
+		p3.init()
+		f.logOnExceedPools[i] = p3
 	}
 }
 
@@ -897,6 +913,9 @@ func (f *MemoryPackageObjectFactory) Reset(connID uint64) {
 
 	p2 := f.trackerPools[connID%slotNum128]
 	p2.Reset(connID)
+
+	p3 := f.bytesLimitsPools[connID%slotNum128]
+	p3.Reset(connID)
 }
 
 func (f *MemoryPackageObjectFactory) GetInt2TracSliceMap(connID uint64) map[int][]*Tracker {
@@ -914,6 +933,22 @@ func getTracker(connID uint64) *Tracker {
 
 	p := MemoryPkgObjFactory.trackerPools[connID%slotNum128]
 	return p.getTracker(connID)
+}
+
+func getBytesLimits(connID uint64) *bytesLimits {
+	if connID == 0 {
+		return &bytesLimits{}
+	}
+	p := MemoryPkgObjFactory.bytesLimitsPools[connID%slotNum128]
+	return p.getBytesLimits(connID)
+}
+
+func getLogOnExceed(connID uint64) *LogOnExceed {
+	if connID == 0 {
+		return &LogOnExceed{}
+	}
+	p := MemoryPkgObjFactory.logOnExceedPools[connID%slotNum128]
+	return p.getLogOnExceed(connID)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -995,4 +1030,79 @@ type trackerWrap struct {
 	inUse  uint32
 	connID uint64
 	data   *Tracker
+}
+
+/////////////////////////////////////////////////////////////////
+type bytesLimitsPool struct {
+	wraps [numPerSlot]*bytesLimitsWrap
+}
+
+func (p *bytesLimitsPool) init() {
+	for i := 0; i < numPerSlot; i++ {
+		w := &bytesLimitsWrap{}
+		w.data = &bytesLimits{}
+		p.wraps[i] = w
+	}
+}
+
+func (p *bytesLimitsPool) Reset(connID uint64) {
+	for _, v := range p.wraps {
+		if atomic.LoadUint64(&v.connID) == connID {
+			atomic.StoreUint32(&v.inUse, 0)
+		}
+	}
+}
+
+func (p *bytesLimitsPool) getBytesLimits(connID uint64) *bytesLimits {
+	for _, w := range p.wraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.data
+		}
+	}
+	return &bytesLimits{}
+}
+
+type bytesLimitsWrap struct {
+	inUse  uint32
+	connID uint64
+	data   *bytesLimits
+}
+
+/////////////////////////////////////////////////////////////////
+
+type logOnExceedPool struct {
+	wraps [numPerSlot]*logOnExceedWrap
+}
+
+func (p *logOnExceedPool) init() {
+	for i := 0; i < numPerSlot; i++ {
+		w := &logOnExceedWrap{}
+		w.data = &LogOnExceed{}
+		p.wraps[i] = w
+	}
+}
+
+func (p *logOnExceedPool) Reset(connID uint64) {
+	for _, v := range p.wraps {
+		if atomic.LoadUint64(&v.connID) == connID {
+			atomic.StoreUint32(&v.inUse, 0)
+		}
+	}
+}
+
+func (p *logOnExceedPool) getLogOnExceed(connID uint64) *LogOnExceed {
+	for _, w := range p.wraps {
+		if atomic.CompareAndSwapUint32(&w.inUse, 0, 1) {
+			atomic.StoreUint64(&w.connID, connID)
+			return w.data
+		}
+	}
+	return &LogOnExceed{}
+}
+
+type logOnExceedWrap struct {
+	inUse  uint32
+	connID uint64
+	data   *LogOnExceed
 }
