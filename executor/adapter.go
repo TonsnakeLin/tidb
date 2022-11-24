@@ -1055,7 +1055,7 @@ func (a *ExecStmt) runPessimisticSelectForUpdate(ctx context.Context, e Executor
 		for r := iter.Begin(); r != iter.End(); r = iter.Next() {
 			rows = append(rows, r)
 		}
-		req = chunk.Renew(req, a.Ctx.GetSessionVars().MaxChunkSize)
+		req = chunk.RenewWithMemPool(a.Ctx.GetSessionVars().MixedMemPool, req, a.Ctx.GetSessionVars().MaxChunkSize)
 	}
 	return nil, err
 }

@@ -143,6 +143,8 @@ func (sa *ByteSliceAllocator) Reset() {
 	sa.offset = 0
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 // Allocator pre-allocates memory to reduce memory allocation cost.
 // It is not thread-safe.
 type Allocator interface {
@@ -366,12 +368,13 @@ func (objAlloc *ObjectorAllocator) GetObjectPointer(len int) unsafe.Pointer {
 }
 
 type SliceAlloctor struct {
-	ExprSlices      any
-	ExprColSlices   any
-	UtilRangeSlice  any
-	VisitInfoSlices any
-	DatumSlices     *types.DatumSlicePool
-	IntSlices       *IntSlicePool
+	ExprSlices        any
+	ExprColSlices     any
+	UtilRangeSlice    any
+	VisitInfoSlices   any
+	DatumSlices       *types.DatumSlicePool
+	IntSlices         *IntSlicePool
+	ChunkColumnSlices any // ChunkColumnSlicePool
 	/*
 
 		ByteSlice       *ByteSliceAllocator
@@ -380,9 +383,6 @@ type SliceAlloctor struct {
 		FieldNameSlice  *types.FieldNameSliceAllocator
 		ModelColumnInfo *model.ModelColumnInfoSliceAllocator
 
-		TableAliasInJoin []map[string]interface{}
-		CteCanUsed       []string
-		CteBeforeOffset  []int
 	*/
 }
 

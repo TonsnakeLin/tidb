@@ -2713,6 +2713,12 @@ func (cc *clientConn) setCachedPoolInMixedPool() {
 		vsp.Init()
 		cc.memPoolSet.SliceAllocator.VisitInfoSlices = vsp
 	}
+
+	if cc.memPoolSet.SliceAllocator.ChunkColumnSlices == nil {
+		ccs := &chunk.ChunkColumnSlicePool{}
+		ccs.Init()
+		cc.memPoolSet.SliceAllocator.ChunkColumnSlices = ccs
+	}
 }
 
 func setCachedPoolInVars(vars *variable.SessionVars) {
@@ -2754,6 +2760,7 @@ func (cc *clientConn) ResetMemPoolSet(vars *variable.SessionVars) {
 		cc.memPoolSet.SliceAllocator.ExprColSlices.(*expression.ExprColumnSlicePool).Reset()
 		cc.memPoolSet.SliceAllocator.UtilRangeSlice.(*ranger.RangeSlicePool).Reset()
 		cc.memPoolSet.SliceAllocator.VisitInfoSlices.(*core.VisitInfoSlicePool).Reset()
+		cc.memPoolSet.SliceAllocator.ChunkColumnSlices.(*chunk.ChunkColumnSlicePool).Reset()
 	}
 
 	resetSessionCachedPool(vars)

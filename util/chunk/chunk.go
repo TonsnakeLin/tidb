@@ -15,11 +15,13 @@
 package chunk
 
 import (
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/arena"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/mathutil"
 )
 
@@ -84,12 +86,12 @@ func New(fields []*types.FieldType, capacity, maxChunkSize int) *Chunk {
 
 // renewWithCapacity creates a new Chunk based on an existing Chunk with capacity. The newly
 // created Chunk has the same data schema with the old Chunk.
-func renewWithCapacity(chk *Chunk, capacity, requiredRows int) *Chunk {
+func renewWithCapacity(p *arena.MemPoolSet, chk *Chunk, capacity, requiredRows int) *Chunk {
 	if chk.columns == nil {
 		return &Chunk{}
 	}
 	return &Chunk{
-		columns:        renewColumns(chk.columns, capacity),
+		columns:        renewColumns(p, chk.columns, capacity),
 		numVirtualRows: 0,
 		capacity:       capacity,
 		requiredRows:   requiredRows,
@@ -104,13 +106,19 @@ func renewWithCapacity(chk *Chunk, capacity, requiredRows int) *Chunk {
 //	maxChunkSize: the limit for the max number of rows.
 func Renew(chk *Chunk, maxChunkSize int) *Chunk {
 	newCap := reCalcCapacity(chk, maxChunkSize)
-	return renewWithCapacity(chk, newCap, maxChunkSize)
+	return renewWithCapacity(nil, chk, newCap, maxChunkSize)
+}
+
+func RenewWithMemPool(p *arena.MemPoolSet, chk *Chunk, maxChunkSize int) *Chunk {
+	newCap := reCalcCapacity(chk, maxChunkSize)
+	return renewWithCapacity(p, chk, newCap, maxChunkSize)
 }
 
 // renewColumns creates the columns of a Chunk. The capacity of the newly
 // created columns is equal to cap.
-func renewColumns(oldCol []*Column, capacity int) []*Column {
-	columns := make([]*Column, 0, len(oldCol))
+func renewColumns(p *arena.MemPoolSet, oldCol []*Column, capacity int) []*Column {
+	// columns := make([]*Column, 0, len(oldCol))
+	columns := getChunkColumnSliceByCap(p, len(oldCol))
 	for _, col := range oldCol {
 		columns = append(columns, newColumn(col.typeSize(), capacity))
 	}
@@ -291,7 +299,7 @@ func (c *Chunk) CopyConstructSel() *Chunk {
 	if c.sel == nil {
 		return c.CopyConstruct()
 	}
-	newChk := renewWithCapacity(c, c.capacity, c.requiredRows)
+	newChk := renewWithCapacity(nil, c, c.capacity, c.requiredRows)
 	for colIdx, dstCol := range newChk.columns {
 		for _, rowIdx := range c.sel {
 			appendCellByCell(dstCol, c.columns[colIdx], rowIdx)
@@ -313,7 +321,7 @@ func (c *Chunk) GrowAndReset(maxChunkSize int) {
 		return
 	}
 	c.capacity = newCap
-	c.columns = renewColumns(c.columns, newCap)
+	c.columns = renewColumns(nil, c.columns, newCap)
 	c.numVirtualRows = 0
 	c.requiredRows = maxChunkSize
 }
@@ -660,4 +668,92 @@ func (c *Chunk) AppendPartialRows(colOff int, rows []Row) {
 			appendCellByCell(dstCol, srcRow.c.columns[i], srcRow.idx)
 		}
 	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+const (
+	sliceNum    int = 8
+	numPerSlice int = 16
+)
+
+func getChunkColumnSliceByCap(p *arena.MemPoolSet, cap int) []*Column {
+	if p == nil {
+		return make([]*Column, 0, cap)
+	}
+	return p.SliceAllocator.ChunkColumnSlices.(*ChunkColumnSlicePool).GetChunkColumnSliceByCap(cap)
+}
+
+func getChunkColumnSliceByLen(p *arena.MemPoolSet, len int) []*Column {
+	if p == nil {
+		return make([]*Column, len)
+	}
+	return p.SliceAllocator.ChunkColumnSlices.(*ChunkColumnSlicePool).GetChunkColumnSliceByLen(len)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+type ChunkColumnSlicePool struct {
+	slices [sliceNum]*chunkColumnSlice
+}
+
+func (p *ChunkColumnSlicePool) Init() {
+	for i := 0; i < sliceNum; i++ {
+		ds := &chunkColumnSlice{}
+		ds.InitDatumSlice(numPerSlice * (i/4 + 1))
+		p.slices[i] = ds
+	}
+}
+
+func (p *ChunkColumnSlicePool) Reset() {
+	for _, ds := range p.slices {
+		ds.Reset()
+	}
+}
+
+func (p *ChunkColumnSlicePool) GetChunkColumnSliceByCap(cap int) []*Column {
+	for _, ds := range p.slices {
+		if atomic.CompareAndSwapUint32(&ds.inUse, 0, 1) {
+			if ds.capacity > cap {
+				return ds.getDatumSliceByCap(cap)
+			}
+			atomic.StoreUint32(&ds.inUse, 0)
+		}
+	}
+	logutil.BgLogger().Warn("GetChunkColumnSliceByCap failed to get from cache")
+	return make([]*Column, 0, cap)
+}
+
+func (p *ChunkColumnSlicePool) GetChunkColumnSliceByLen(len int) []*Column {
+	for _, ds := range p.slices {
+		if atomic.CompareAndSwapUint32(&ds.inUse, 0, 1) {
+			if ds.capacity > len {
+				return ds.getDatumSliceByCap(len)
+			}
+		}
+		atomic.StoreUint32(&ds.inUse, 0)
+	}
+	logutil.BgLogger().Warn("GetChunkColumnSliceByLen failed to get from cache")
+	return make([]*Column, len)
+}
+
+type chunkColumnSlice struct {
+	data     []*Column
+	capacity int
+	inUse    uint32
+}
+
+func (ds *chunkColumnSlice) InitDatumSlice(cap int) {
+	ds.data = make([]*Column, cap, cap)
+	ds.capacity = cap
+}
+
+func (ds *chunkColumnSlice) getDatumSliceByCap(cap int) []*Column {
+	return ds.data[0:0:cap]
+}
+
+func (ds *chunkColumnSlice) GetDatumSliceByLen(len int) []*Column {
+	return ds.data[0:len:len]
+}
+
+func (ds *chunkColumnSlice) Reset() {
+	ds.inUse = 0
 }

@@ -320,7 +320,7 @@ func (e *UpdateExec) updateRows(ctx context.Context) (int, error) {
 			}
 		}
 		totalNumRows += chk.NumRows()
-		chk = chunk.Renew(chk, e.maxChunkSize)
+		chk = chunk.RenewWithMemPool(e.ctx.GetSessionVars().MixedMemPool, chk, e.maxChunkSize)
 	}
 	return totalNumRows, nil
 }
