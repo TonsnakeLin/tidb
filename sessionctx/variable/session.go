@@ -1324,14 +1324,14 @@ func GetIntSliceByCap(s *SessionVars, cap int) []int {
 	if s.MixedMemPool == nil {
 		return make([]int, 0, cap)
 	}
-	return s.MixedMemPool.SliceAllocator.IntSlice.GetExprSliceByCap(cap)
+	return s.MixedMemPool.SliceAllocator.IntSlices.GetIntSliceByCap(cap)
 }
 
 func GetIntSliceByLen(s *SessionVars, len int) []int {
 	if s.MixedMemPool == nil {
 		return make([]int, len)
 	}
-	return s.MixedMemPool.SliceAllocator.IntSlice.GetExprSliceByLen(len)
+	return s.MixedMemPool.SliceAllocator.IntSlices.GetIntSliceByLen(len)
 }
 
 func GetInt2IntSliceMap(s *SessionVars) map[int][]int {

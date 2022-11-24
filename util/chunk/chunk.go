@@ -19,6 +19,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/types"
+	"github.com/pingcap/tidb/util/arena"
 	"github.com/pingcap/tidb/util/mathutil"
 )
 
@@ -202,7 +203,7 @@ func (c *Chunk) MakeRefTo(dstColIdx int, src *Chunk, srcColIdx int) error {
 // SwapColumn swaps Column "c.columns[colIdx]" with Column
 // "other.columns[otherIdx]". If there exists columns refer to the Column to be
 // swapped, we need to re-build the reference.
-func (c *Chunk) SwapColumn(colIdx int, other *Chunk, otherIdx int) error {
+func (c *Chunk) SwapColumn(p *arena.MemPoolSet, colIdx int, other *Chunk, otherIdx int) error {
 	if c.sel != nil || other.sel != nil {
 		return errors.New(msgErrSelNotNil)
 	}
@@ -220,13 +221,15 @@ func (c *Chunk) SwapColumn(colIdx int, other *Chunk, otherIdx int) error {
 	}
 
 	// Find the columns which refer to the actual Column to be swapped.
-	refColsIdx := make([]int, 0, len(c.columns)-colIdx)
+	// refColsIdx := make([]int, 0, len(c.columns)-colIdx)
+	refColsIdx := arena.GetIntSliceByCap(p, len(c.columns)-colIdx)
 	for i := colIdx; i < len(c.columns); i++ {
 		if c.columns[i] == c.columns[colIdx] {
 			refColsIdx = append(refColsIdx, i)
 		}
 	}
-	refColsIdx4Other := make([]int, 0, len(other.columns)-otherIdx)
+	// refColsIdx4Other := make([]int, 0, len(other.columns)-otherIdx)
+	refColsIdx4Other := arena.GetIntSliceByCap(p, len(other.columns)-otherIdx)
 	for i := otherIdx; i < len(other.columns); i++ {
 		if other.columns[i] == other.columns[otherIdx] {
 			refColsIdx4Other = append(refColsIdx4Other, i)

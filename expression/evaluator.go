@@ -32,7 +32,7 @@ type columnEvaluator struct {
 //	since it will change the content of the input Chunk.
 func (e *columnEvaluator) run(ctx sessionctx.Context, input, output *chunk.Chunk) error {
 	for inputIdx, outputIdxes := range e.inputIdxToOutputIdxes {
-		if err := output.SwapColumn(outputIdxes[0], input, inputIdx); err != nil {
+		if err := output.SwapColumn(ctx.GetSessionVars().MixedMemPool, outputIdxes[0], input, inputIdx); err != nil {
 			return err
 		}
 		for i, length := 1, len(outputIdxes); i < length; i++ {

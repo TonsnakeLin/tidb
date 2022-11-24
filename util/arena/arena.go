@@ -24,12 +24,27 @@ import (
 	"github.com/pingcap/tidb/types"
 )
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+func GetIntSliceByCap(p *MemPoolSet, cap int) []int {
+	if p == nil {
+		return make([]int, 0, cap)
+	}
+	return p.SliceAllocator.IntSlices.GetIntSliceByCap(cap)
+}
+
+func GetIntSliceByLen(p *MemPoolSet, len int) []int {
+	if p == nil {
+		return make([]int, len)
+	}
+	return p.SliceAllocator.IntSlices.GetIntSliceByCap(len)
+}
+
 type IntSlicePool struct {
-	slices [16]*intSlice
+	slices [8]*intSlice
 }
 
 func (p *IntSlicePool) Init() {
-	for i := 0; i < 16; i++ {
+	for i := 0; i < 8; i++ {
 		es := &intSlice{}
 		es.initIntSlice((i/2 + 1) * 16)
 		p.slices[i] = es
@@ -42,20 +57,26 @@ func (p *IntSlicePool) Reset() {
 	}
 }
 
-func (p *IntSlicePool) GetExprSliceByCap(cap int) []int {
+func (p *IntSlicePool) GetIntSliceByCap(cap int) []int {
 	for _, es := range p.slices {
 		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
-			return es.GetExprSliceByCap(cap)
+			if es.capacity >= cap {
+				return es.getIntSliceByCap(cap)
+			}
+			atomic.StoreUint32(&es.inUse, 0)
 		}
 	}
 
 	return make([]int, 0, cap)
 }
 
-func (p *IntSlicePool) GetExprSliceByLen(len int) []int {
+func (p *IntSlicePool) GetIntSliceByLen(len int) []int {
 	for _, es := range p.slices {
 		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
-			return es.GetExprSliceByLen(len)
+			if es.capacity >= len {
+				return es.getIntSliceByCap(len)
+			}
+			atomic.StoreUint32(&es.inUse, 0)
 		}
 	}
 
@@ -75,23 +96,19 @@ func (es *intSlice) initIntSlice(cap int) {
 }
 
 func (es *intSlice) Reset() {
+	atomic.StoreUint32(&es.inUse, 0)
 	es.inUse = 0
 }
 
-func (es *intSlice) GetExprSliceByCap(cap int) []int {
-	if cap > es.capacity {
-		return make([]int, 0, cap)
-	}
+func (es *intSlice) getIntSliceByCap(cap int) []int {
 	return es.data[0:0:cap]
 }
 
-func (es *intSlice) GetExprSliceByLen(len int) []int {
-	if len > es.capacity {
-		return make([]int, len)
-	}
+func (es *intSlice) getIntSliceByLen(len int) []int {
 	return es.data[0:len:len]
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
 type ByteSliceAllocator struct {
 	slice    []byte
 	offset   int
@@ -192,7 +209,6 @@ func (s *SimpleAllocator) Reset() {
 }
 
 type MemPoolSet struct {
-	mutex          sync.Mutex
 	SliceAllocator *SliceAlloctor
 	MapAlloctor    *MapAllocator
 }
@@ -301,10 +317,6 @@ func (mps *MemPoolSet) GetModelColumnInfoSliceByLen(len int) []*model.ColumnInfo
 	return mps.SliceAllocator.ModelColumnInfo.GetColumnInfoSliceByLen(len)
 }
 
-func (mps *MemPoolSet) GetIntSliceByCap(cap int) []int {
-	return mps.SliceAllocator.IntSlice.GetIntSliceByCap(cap)
-}
-
 func (mps *MemPoolSet) GetIntSliceByLen(len int) []int {
 	return mps.SliceAllocator.IntSlice.GetIntSliceByLen(len)
 }
@@ -359,7 +371,7 @@ type SliceAlloctor struct {
 	UtilRangeSlice  any
 	VisitInfoSlices any
 	DatumSlices     *types.DatumSlicePool
-	IntSlice        *IntSlicePool
+	IntSlices       *IntSlicePool
 	/*
 
 		ByteSlice       *ByteSliceAllocator
@@ -376,7 +388,7 @@ type SliceAlloctor struct {
 
 func (sa *SliceAlloctor) Reset() {
 	sa.DatumSlices.Reset()
-	sa.IntSlice.Reset()
+	sa.IntSlices.Reset()
 	/*
 
 		sa.FieldTypeSlice.Reset()
@@ -394,8 +406,8 @@ func (sa *SliceAlloctor) InitSliceAlloctor() {
 	sa.DatumSlices = &types.DatumSlicePool{}
 	sa.DatumSlices.Init()
 
-	sa.IntSlice = &IntSlicePool{}
-	sa.IntSlice.Init()
+	sa.IntSlices = &IntSlicePool{}
+	sa.IntSlices.Init()
 	/*
 
 			sa.FieldTypeSlice = &types.FieldTypeSliceAllocator{}

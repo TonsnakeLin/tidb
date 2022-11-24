@@ -1385,7 +1385,7 @@ func (e *LimitExec) Next(ctx context.Context, req *chunk.Chunk) error {
 
 	if e.columnIdxsUsedByChild != nil {
 		for i, childIdx := range e.columnIdxsUsedByChild {
-			if err = req.SwapColumn(i, e.childResult, childIdx); err != nil {
+			if err = req.SwapColumn(nil, i, e.childResult, childIdx); err != nil {
 				return err
 			}
 		}

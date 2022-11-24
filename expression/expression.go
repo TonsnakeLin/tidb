@@ -192,7 +192,10 @@ func (p *ExpressionSlicePool) Reset() {
 func (p *ExpressionSlicePool) GetExprSliceByCap(cap int) []Expression {
 	for _, es := range p.exprs {
 		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
-			return es.GetExprSliceByCap(cap)
+			if es.exprsCapacity > cap {
+				return es.getExprSliceByCap(cap)
+			}
+			atomic.StoreUint32(&es.inUse, 0)
 		}
 	}
 
@@ -202,7 +205,10 @@ func (p *ExpressionSlicePool) GetExprSliceByCap(cap int) []Expression {
 func (p *ExpressionSlicePool) GetExprSliceByLen(len int) []Expression {
 	for _, es := range p.exprs {
 		if atomic.CompareAndSwapUint32(&es.inUse, 0, 1) {
-			return es.GetExprSliceByLen(len)
+			if es.exprsCapacity > len {
+				return es.getExprSliceByLen(len)
+			}
+			atomic.StoreUint32(&es.inUse, 0)
 		}
 	}
 
@@ -225,17 +231,11 @@ func (es *expressionSlice) Reset() {
 	es.inUse = 0
 }
 
-func (es *expressionSlice) GetExprSliceByCap(cap int) []Expression {
-	if cap > es.exprsCapacity {
-		return make([]Expression, 0, cap)
-	}
+func (es *expressionSlice) getExprSliceByCap(cap int) []Expression {
 	return es.exprs[0:0:cap]
 }
 
-func (es *expressionSlice) GetExprSliceByLen(len int) []Expression {
-	if len > es.exprsCapacity {
-		return make([]Expression, len)
-	}
+func (es *expressionSlice) getExprSliceByLen(len int) []Expression {
 	return es.exprs[0:len:len]
 }
 
