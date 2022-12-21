@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"runtime"
 	"runtime/pprof"
 	"runtime/trace"
 	"strconv"
@@ -2113,6 +2114,12 @@ func (s *session) ExecRestrictedSQL(ctx context.Context, opts []sqlexec.OptionFu
 	})
 }
 
+func setStartPauseTotalNs(sessVars *variable.SessionVars) {
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	sessVars.StartPauseTotalNs = memStats.PauseTotalNs
+}
+
 func (s *session) ExecuteStmt(ctx context.Context, stmtNode ast.StmtNode) (sqlexec.RecordSet, error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
 		span1 := span.Tracer().StartSpan("session.ExecuteStmt", opentracing.ChildOf(span.Context()))
@@ -2130,6 +2137,8 @@ func (s *session) ExecuteStmt(ctx context.Context, stmtNode ast.StmtNode) (sqlex
 
 	sessVars := s.sessionVars
 	sessVars.StartTime = time.Now()
+
+	setStartPauseTotalNs(sessVars)
 
 	// Some executions are done in compile stage, so we reset them before compile.
 	if err := executor.ResetContextOfStmt(s, stmtNode); err != nil {
