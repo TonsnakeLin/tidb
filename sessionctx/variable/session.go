@@ -2888,6 +2888,9 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	}
 	buf.WriteString("\n")
 
+	writeSlowLogItem(&buf, SlowLogOptimizeTimeStr, strconv.FormatFloat(logItems.TimeOptimize.Seconds(), 'f', -1, 64))
+	writeSlowLogItem(&buf, SlowLogWaitTSTimeStr, strconv.FormatFloat(logItems.TimeWaitTS.Seconds(), 'f', -1, 64))
+
 	buf.WriteString(SlowLogRowPrefixStr + fmt.Sprintf("%v%v%v", SlowLogExecuteTimeStr,
 		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeExecute.Seconds(), 'f', -1, 64)))
 	buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogBuildExecutorTimeStr,
@@ -2897,9 +2900,6 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogRunExecutorTimeStr,
 		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeRunExecutor.Seconds(), 'f', -1, 64)))
 	buf.WriteString("\n")
-
-	writeSlowLogItem(&buf, SlowLogOptimizeTimeStr, strconv.FormatFloat(logItems.TimeOptimize.Seconds(), 'f', -1, 64))
-	writeSlowLogItem(&buf, SlowLogWaitTSTimeStr, strconv.FormatFloat(logItems.TimeWaitTS.Seconds(), 'f', -1, 64))
 
 	if execDetailStr := logItems.ExecDetail.String(); len(execDetailStr) > 0 {
 		buf.WriteString(SlowLogRowPrefixStr + execDetailStr + "\n")
