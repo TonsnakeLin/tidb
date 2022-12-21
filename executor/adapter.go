@@ -457,44 +457,45 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 		}
 	})
 	sctx := a.Ctx
+	sVars := sctx.GetSessionVars()
 	ctx = util.SetSessionID(ctx, sctx.GetSessionVars().ConnectionID)
 	if _, ok := a.Plan.(*plannercore.Analyze); ok && sctx.GetSessionVars().InRestrictedSQL {
-		oriStats, ok := sctx.GetSessionVars().GetSystemVar(variable.TiDBBuildStatsConcurrency)
+		oriStats, ok := sVars.GetSystemVar(variable.TiDBBuildStatsConcurrency)
 		if !ok {
 			oriStats = strconv.Itoa(variable.DefBuildStatsConcurrency)
 		}
-		oriScan := sctx.GetSessionVars().DistSQLScanConcurrency()
-		oriIndex := sctx.GetSessionVars().IndexSerialScanConcurrency()
-		oriIso, ok := sctx.GetSessionVars().GetSystemVar(variable.TxnIsolation)
+		oriScan := sVars.DistSQLScanConcurrency()
+		oriIndex := sVars.IndexSerialScanConcurrency()
+		oriIso, ok := sVars.GetSystemVar(variable.TxnIsolation)
 		if !ok {
 			oriIso = "REPEATABLE-READ"
 		}
-		autoConcurrency, err1 := sctx.GetSessionVars().GetSessionOrGlobalSystemVar(ctx, variable.TiDBAutoBuildStatsConcurrency)
+		autoConcurrency, err1 := sVars.GetSessionOrGlobalSystemVar(ctx, variable.TiDBAutoBuildStatsConcurrency)
 		terror.Log(err1)
 		if err1 == nil {
-			terror.Log(sctx.GetSessionVars().SetSystemVar(variable.TiDBBuildStatsConcurrency, autoConcurrency))
+			terror.Log(sVars.SetSystemVar(variable.TiDBBuildStatsConcurrency, autoConcurrency))
 		}
-		sVal, err2 := sctx.GetSessionVars().GetSessionOrGlobalSystemVar(ctx, variable.TiDBSysProcScanConcurrency)
+		sVal, err2 := sVars.GetSessionOrGlobalSystemVar(ctx, variable.TiDBSysProcScanConcurrency)
 		terror.Log(err2)
 		if err2 == nil {
 			concurrency, err3 := strconv.ParseInt(sVal, 10, 64)
 			terror.Log(err3)
 			if err3 == nil {
-				sctx.GetSessionVars().SetDistSQLScanConcurrency(int(concurrency))
+				sVars.SetDistSQLScanConcurrency(int(concurrency))
 			}
 		}
-		sctx.GetSessionVars().SetIndexSerialScanConcurrency(1)
-		terror.Log(sctx.GetSessionVars().SetSystemVar(variable.TxnIsolation, ast.ReadCommitted))
+		sVars.SetIndexSerialScanConcurrency(1)
+		terror.Log(sVars.SetSystemVar(variable.TxnIsolation, ast.ReadCommitted))
 		defer func() {
-			terror.Log(sctx.GetSessionVars().SetSystemVar(variable.TiDBBuildStatsConcurrency, oriStats))
-			sctx.GetSessionVars().SetDistSQLScanConcurrency(oriScan)
-			sctx.GetSessionVars().SetIndexSerialScanConcurrency(oriIndex)
-			terror.Log(sctx.GetSessionVars().SetSystemVar(variable.TxnIsolation, oriIso))
+			terror.Log(sVars.SetSystemVar(variable.TiDBBuildStatsConcurrency, oriStats))
+			sVars.SetDistSQLScanConcurrency(oriScan)
+			sVars.SetIndexSerialScanConcurrency(oriIndex)
+			terror.Log(sVars.SetSystemVar(variable.TxnIsolation, oriIso))
 		}()
 	}
 
-	if sctx.GetSessionVars().StmtCtx.HasMemQuotaHint {
-		sctx.GetSessionVars().MemTracker.SetBytesLimit(sctx.GetSessionVars().StmtCtx.MemQuotaQuery)
+	if sVars.StmtCtx.HasMemQuotaHint {
+		sVars.MemTracker.SetBytesLimit(sctx.GetSessionVars().StmtCtx.MemQuotaQuery)
 	}
 
 	e, err := a.buildExecutor()
@@ -510,7 +511,7 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 		return nil, err
 	}
 
-	cmd32 := atomic.LoadUint32(&sctx.GetSessionVars().CommandValue)
+	cmd32 := atomic.LoadUint32(&sVars.CommandValue)
 	cmd := byte(cmd32)
 	var pi processinfoSetter
 	if raw, ok := sctx.(processinfoSetter); ok {
@@ -524,11 +525,11 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 		}
 		maxExecutionTime := getMaxExecutionTime(sctx)
 		// Update processinfo, ShowProcess() will use it.
-		if a.Ctx.GetSessionVars().StmtCtx.StmtType == "" {
-			a.Ctx.GetSessionVars().StmtCtx.StmtType = ast.GetStmtLabel(a.StmtNode)
+		if sVars.StmtCtx.StmtType == "" {
+			sVars.StmtCtx.StmtType = ast.GetStmtLabel(a.StmtNode)
 		}
 		// Since maxExecutionTime is used only for query statement, here we limit it affect scope.
-		if !a.IsReadOnly(a.Ctx.GetSessionVars()) {
+		if !a.IsReadOnly(sVars) {
 			maxExecutionTime = 0
 		}
 		pi.SetProcessInfo(sql, time.Now(), cmd, maxExecutionTime)
@@ -536,18 +537,18 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 
 	failpoint.Inject("mockDelayInnerSessionExecute", func() {
 		var curTxnStartTS uint64
-		if cmd != mysql.ComSleep || sctx.GetSessionVars().InTxn() {
-			curTxnStartTS = sctx.GetSessionVars().TxnCtx.StartTS
+		if cmd != mysql.ComSleep || sVars.InTxn() {
+			curTxnStartTS = sVars.TxnCtx.StartTS
 		}
 		if sctx.GetSessionVars().SnapshotTS != 0 {
-			curTxnStartTS = sctx.GetSessionVars().SnapshotTS
+			curTxnStartTS = sVars.SnapshotTS
 		}
 		logutil.BgLogger().Info("Enable mockDelayInnerSessionExecute when execute statement",
 			zap.Uint64("startTS", curTxnStartTS))
 		time.Sleep(200 * time.Millisecond)
 	})
 
-	isPessimistic := sctx.GetSessionVars().TxnCtx.IsPessimistic
+	isPessimistic := sVars.TxnCtx.IsPessimistic
 
 	// Special handle for "select for update statement" in pessimistic transaction.
 	if isPessimistic && a.isSelectForUpdate {
@@ -1502,6 +1503,8 @@ func (a *ExecStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults bool) {
 		TimeCompile:       sessVars.DurationCompile,
 		TimeOptimize:      sessVars.DurationOptimization,
 		TimeWaitTS:        sessVars.DurationWaitTS,
+		TimeBuildExecutor: a.phaseBuildDurations[0],
+		TimeOpenExecutor:  a.phaseOpenDurations[0],
 		IndexNames:        indexNames,
 		StatsInfos:        statsInfos,
 		CopTasks:          copTaskInfo,
@@ -1535,6 +1538,8 @@ func (a *ExecStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults bool) {
 			}
 		}
 	})
+	slowItems.TimeExecute = costTime - sessVars.DurationParse - sessVars.DurationCompile
+	slowItems.TimeRunExecutor = costTime - sessVars.DurationParse - sessVars.DurationCompile - a.phaseBuildDurations[0] - a.phaseOpenDurations[0]
 	if a.retryCount > 0 {
 		slowItems.ExecRetryTime = costTime - sessVars.DurationParse - sessVars.DurationCompile - time.Since(a.retryStartTime)
 	}

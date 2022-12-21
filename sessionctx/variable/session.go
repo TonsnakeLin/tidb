@@ -2686,7 +2686,11 @@ const (
 	// SlowLogOptimizeTimeStr is the optimization time.
 	SlowLogOptimizeTimeStr = "Optimize_time"
 	// SlowLogWaitTSTimeStr is the time of waiting TS.
-	SlowLogWaitTSTimeStr = "Wait_TS"
+	SlowLogWaitTSTimeStr        = "Wait_TS"
+	SlowLogExecuteTimeStr       = "Execute_time"
+	SlowLogBuildExecutorTimeStr = "Build_executor_time"
+	SlowLogOpenExecutorTimeStr  = "Open_executor_time"
+	SlowLogRunExecutorTimeStr   = "Run_executor_time"
 	// SlowLogPreprocSubQueriesStr is the number of pre-processed sub-queries.
 	SlowLogPreprocSubQueriesStr = "Preproc_subqueries"
 	// SlowLogPreProcSubQueryTimeStr is the total time of pre-processing sub-queries.
@@ -2792,6 +2796,10 @@ type SlowQueryLogItems struct {
 	TimeCompile       time.Duration
 	TimeOptimize      time.Duration
 	TimeWaitTS        time.Duration
+	TimeExecute       time.Duration
+	TimeBuildExecutor time.Duration
+	TimeOpenExecutor  time.Duration
+	TimeRunExecutor   time.Duration
 	IndexNames        string
 	StatsInfos        map[string]uint64
 	CopTasks          *stmtctx.CopTasksDetails
@@ -2878,6 +2886,16 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 		buf.WriteString(fmt.Sprintf(" %v%v%v %v%v%v", SlowLogPreprocSubQueriesStr, SlowLogSpaceMarkStr, logItems.RewriteInfo.PreprocessSubQueries,
 			SlowLogPreProcSubQueryTimeStr, SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.RewriteInfo.DurationPreprocessSubQuery.Seconds(), 'f', -1, 64)))
 	}
+	buf.WriteString("\n")
+
+	buf.WriteString(SlowLogRowPrefixStr + fmt.Sprintf("%v%v%v", SlowLogExecuteTimeStr,
+		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeExecute.Seconds(), 'f', -1, 64)))
+	buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogBuildExecutorTimeStr,
+		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeBuildExecutor.Seconds(), 'f', -1, 64)))
+	buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogOpenExecutorTimeStr,
+		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeOpenExecutor.Seconds(), 'f', -1, 64)))
+	buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogRunExecutorTimeStr,
+		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeRunExecutor.Seconds(), 'f', -1, 64)))
 	buf.WriteString("\n")
 
 	writeSlowLogItem(&buf, SlowLogOptimizeTimeStr, strconv.FormatFloat(logItems.TimeOptimize.Seconds(), 'f', -1, 64))
