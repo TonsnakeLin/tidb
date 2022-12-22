@@ -29,7 +29,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"runtime/trace"
 	"strconv"
@@ -2119,9 +2119,9 @@ func setStartPauseTotalNs(sessVars *variable.SessionVars) {
 	if !sessVars.RecordGcTimeInSlowLog {
 		return
 	}
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	sessVars.StartPauseTotalNs = memStats.PauseTotalNs
+	var stat debug.GCStats
+	debug.ReadGCStats(&stat)
+	sessVars.StartPauseTotalNs = stat.PauseTotal
 }
 
 func (s *session) ExecuteStmt(ctx context.Context, stmtNode ast.StmtNode) (sqlexec.RecordSet, error) {

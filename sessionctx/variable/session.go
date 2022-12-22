@@ -1002,7 +1002,7 @@ type SessionVars struct {
 	// DurationWaitTS is the duration of waiting for a snapshot TS
 	DurationWaitTS time.Duration
 
-	StartPauseTotalNs uint64
+	StartPauseTotalNs time.Duration
 
 	// PrevStmt is used to store the previous executed statement in the current session.
 	PrevStmt fmt.Stringer

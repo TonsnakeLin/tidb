@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"runtime"
+	"runtime/debug"
 	"runtime/trace"
 	"strconv"
 	"strings"
@@ -1435,35 +1435,37 @@ func getTotalAvgPauseTime(sessVars *variable.SessionVars) (time.Duration, time.D
 		return 0, 0
 	}
 
-	var memStat runtime.MemStats
-	runtime.ReadMemStats(&memStat)
-	totalPause := time.Duration(memStat.PauseTotalNs - sessVars.StartPauseTotalNs)
-
-	if len(memStat.PauseNs) == 0 {
-		return totalPause, 0
-	}
-
-	sum := uint64(0)
-
-	if len(memStat.PauseNs) < 5 {
-		for _, t := range memStat.PauseNs {
-			sum += t
+	var stat debug.GCStats
+	debug.ReadGCStats(&stat)
+	totalPause := stat.PauseTotal - sessVars.StartPauseTotalNs
+	return totalPause, 0
+	/*
+		if len(memStat.PauseNs) == 0 {
+			return totalPause, 0
 		}
-		avg := sum / uint64(len(memStat.PauseNs))
+
+		sum := uint64(0)
+
+		if len(memStat.PauseNs) < 5 {
+			for _, t := range memStat.PauseNs {
+				sum += t
+			}
+			avg := sum / uint64(len(memStat.PauseNs))
+			return totalPause, time.Duration(avg)
+		}
+
+		pos := (memStat.NumGC + 255) % 256
+		for cnt := 0; cnt < 5; cnt++ {
+			sum += memStat.PauseNs[pos]
+			if pos == 0 {
+				pos = 255
+				continue
+			}
+			pos--
+		}
+		avg := sum / 5
 		return totalPause, time.Duration(avg)
-	}
-
-	pos := (memStat.NumGC + 255) % 256
-	for cnt := 0; cnt < 5; cnt++ {
-		sum += memStat.PauseNs[pos]
-		if pos == 0 {
-			pos = 255
-			continue
-		}
-		pos--
-	}
-	avg := sum / 5
-	return totalPause, time.Duration(avg)
+	*/
 }
 
 // LogSlowQuery is used to print the slow query in the log files.
