@@ -589,6 +589,12 @@ func (s *selectResultRuntimeStats) String() string {
 			buf.WriteString(strconv.FormatInt(copRPC.Count, 10))
 			buf.WriteString(", rpc_time: ")
 			buf.WriteString(execdetails.FormatDuration(time.Duration(copRPC.Consume)))
+			buf.WriteString(", batch_recv_time: ")
+			buf.WriteString(execdetails.FormatDuration(time.Duration(copRPC.BatchRecvReq)))
+			buf.WriteString(", batch_send_time: ")
+			buf.WriteString(execdetails.FormatDuration(time.Duration(copRPC.BatchSendReq)))
+			buf.WriteString(", recv_resp_from_batch: ")
+			buf.WriteString(execdetails.FormatDuration(time.Duration(copRPC.RecvRespFromBatch)))
 		}
 		if config.GetGlobalConfig().TiKVClient.CoprCache.CapacityMB > 0 {
 			buf.WriteString(fmt.Sprintf(", copr_cache_hit_ratio: %v",
