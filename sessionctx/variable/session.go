@@ -1003,6 +1003,7 @@ type SessionVars struct {
 	DurationWaitTS time.Duration
 
 	StartPauseTotalNs time.Duration
+	Last5GCPauseNs    [5]time.Duration
 
 	// PrevStmt is used to store the previous executed statement in the current session.
 	PrevStmt fmt.Stringer
@@ -1255,7 +1256,8 @@ type SessionVars struct {
 	// PrimaryKeyRequired indicates if sql_require_primary_key sysvar is set
 	PrimaryKeyRequired bool
 
-	RecordGcTimeInSlowLog bool
+	RecordGcTimeInSlowLog   bool
+	RecordRecentGCPauseOnly bool
 
 	// EnablePreparedPlanCache indicates whether to enable prepared plan cache.
 	EnablePreparedPlanCache bool
@@ -2690,13 +2692,13 @@ const (
 	// SlowLogOptimizeTimeStr is the optimization time.
 	SlowLogOptimizeTimeStr = "Optimize_time"
 	// SlowLogWaitTSTimeStr is the time of waiting TS.
-	SlowLogWaitTSTimeStr           = "Wait_TS"
-	SlowLogExecuteTimeStr          = "Execute_time"
-	SlowLogBuildExecutorTimeStr    = "Build_executor_time"
-	SlowLogOpenExecutorTimeStr     = "Open_executor_time"
-	SlowLogRunExecutorTimeStr      = "Run_executor_time"
-	SlowLogGCPauseTimeStr          = "GCPause_time"
-	SlowLogGC5CycleAvgPauseTimeStr = "GC5cycle_avg_pause_time"
+	SlowLogWaitTSTimeStr        = "Wait_TS"
+	SlowLogExecuteTimeStr       = "Execute_time"
+	SlowLogBuildExecutorTimeStr = "Build_executor_time"
+	SlowLogOpenExecutorTimeStr  = "Open_executor_time"
+	SlowLogRunExecutorTimeStr   = "Run_executor_time"
+	SlowLogGCPauseTimeStr       = "GCPause_time"
+	SlowLogGC5CyclePauseTimeStr = "GC5cycle_pause_time"
 	// SlowLogPreprocSubQueriesStr is the number of pre-processed sub-queries.
 	SlowLogPreprocSubQueriesStr = "Preproc_subqueries"
 	// SlowLogPreProcSubQueryTimeStr is the total time of pre-processing sub-queries.
@@ -2807,7 +2809,7 @@ type SlowQueryLogItems struct {
 	TimeOpenExecutor  time.Duration
 	TimeRunExecutor   time.Duration
 	TimeGCPause       time.Duration
-	TimeLast5GCPause  time.Duration
+	TimeLast5GCPause  []time.Duration
 	IndexNames        string
 	StatsInfos        map[string]uint64
 	CopTasks          *stmtctx.CopTasksDetails
@@ -2909,11 +2911,15 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeRunExecutor.Seconds(), 'f', -1, 64)))
 	buf.WriteString("\n")
 
-	buf.WriteString(SlowLogRowPrefixStr + fmt.Sprintf("%v%v%v", SlowLogGCPauseTimeStr,
-		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeGCPause.Seconds(), 'f', -1, 64)))
-	buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogGC5CycleAvgPauseTimeStr,
-		SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeLast5GCPause.Seconds(), 'f', -1, 64)))
-	buf.WriteString("\n")
+	if s.RecordGcTimeInSlowLog {
+		buf.WriteString(SlowLogRowPrefixStr + fmt.Sprintf("%v%v%v", SlowLogGCPauseTimeStr,
+			SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeGCPause.Seconds(), 'f', -1, 64)))
+		buf.WriteString(fmt.Sprintf(" %v%v", SlowLogGC5CyclePauseTimeStr, SlowLogSpaceMarkStr))
+		for _, v := range s.Last5GCPauseNs {
+			buf.WriteString(fmt.Sprintf(" %v", strconv.FormatFloat(v.Seconds(), 'f', -1, 64)))
+		}
+		buf.WriteString("\n")
+	}
 
 	if execDetailStr := logItems.ExecDetail.String(); len(execDetailStr) > 0 {
 		buf.WriteString(SlowLogRowPrefixStr + execDetailStr + "\n")

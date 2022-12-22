@@ -2116,7 +2116,10 @@ func (s *session) ExecRestrictedSQL(ctx context.Context, opts []sqlexec.OptionFu
 
 func setStartPauseTotalNs(sessVars *variable.SessionVars) {
 	sessVars.StartPauseTotalNs = 0
-	if !sessVars.RecordGcTimeInSlowLog {
+	for i := 0; i < len(sessVars.Last5GCPauseNs); i++ {
+		sessVars.Last5GCPauseNs[i] = 0
+	}
+	if !sessVars.RecordGcTimeInSlowLog || sessVars.RecordRecentGCPauseOnly {
 		return
 	}
 	var stat debug.GCStats
