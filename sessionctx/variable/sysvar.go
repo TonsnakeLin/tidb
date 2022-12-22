@@ -2079,6 +2079,10 @@ var defaultSysVars = []*SysVar{
 		s.PrimaryKeyRequired = TiDBOptOn(val)
 		return nil
 	}},
+	{Scope: ScopeGlobal | ScopeSession, Name: TiDBRecordGCTimeInSlowLog, Value: On, Type: TypeBool, SetSession: func(s *SessionVars, val string) error {
+		s.RecordGcTimeInSlowLog = TiDBOptOn(val)
+		return nil
+	}},
 	{Scope: ScopeGlobal | ScopeSession, Name: TiDBEnableAnalyzeSnapshot, Value: BoolToOnOff(DefTiDBEnableAnalyzeSnapshot), Type: TypeBool, SetSession: func(s *SessionVars, val string) error {
 		s.EnableAnalyzeSnapshot = TiDBOptOn(val)
 		return nil
@@ -2599,4 +2603,5 @@ const (
 	ValidatePasswordSpecialCharCount = "validate_password.special_char_count"
 	// ValidatePasswordDictionary specified the dictionary that validate_password uses for checking passwords. Each word is separated by semicolon (;).
 	ValidatePasswordDictionary = "validate_password.dictionary"
+	TiDBRecordGCTimeInSlowLog  = "tidb_record_gc_time_in_slow_log"
 )

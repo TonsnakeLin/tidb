@@ -1255,6 +1255,8 @@ type SessionVars struct {
 	// PrimaryKeyRequired indicates if sql_require_primary_key sysvar is set
 	PrimaryKeyRequired bool
 
+	RecordGcTimeInSlowLog bool
+
 	// EnablePreparedPlanCache indicates whether to enable prepared plan cache.
 	EnablePreparedPlanCache bool
 
