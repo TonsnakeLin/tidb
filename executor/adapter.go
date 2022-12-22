@@ -1431,6 +1431,10 @@ func (a *ExecStmt) CloseRecordSet(txnStartTS uint64, lastErr error) {
 }
 
 func getTotalAvgPauseTime(sessVars *variable.SessionVars) (time.Duration, time.Duration) {
+	if !sessVars.RecordGcTimeInSlowLog || sessVars.StartPauseTotalNs == 0 {
+		return 0, 0
+	}
+
 	var memStat runtime.MemStats
 	runtime.ReadMemStats(&memStat)
 	totalPause := time.Duration(memStat.PauseTotalNs - sessVars.StartPauseTotalNs)
