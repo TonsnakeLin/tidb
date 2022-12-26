@@ -322,11 +322,14 @@ func TestRuntimeStatsWithCommit(t *testing.T) {
 		BackoffTime: int64(time.Second * 3),
 		Mu: struct {
 			sync.Mutex
-			BackoffTypes        []string
-			SlowestReqTotalTime time.Duration
-			SlowestRegion       uint64
-			SlowestStoreAddr    string
-			SlowestExecDetails  util.TiKVExecDetails
+			BackoffTypes             []string
+			SlowestReqTotalTime      time.Duration
+			SlowestRegion            uint64
+			SlowestStoreAddr         string
+			SlowestExecDetails       util.TiKVExecDetails
+			SlowestBatchRecvReq      int64
+			SlowestBatchSendReq      int64
+			SlowestRecvRespFromBatch int64
 		}{
 			BackoffTypes: []string{
 				"backoff4",

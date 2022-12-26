@@ -1101,7 +1101,15 @@ func (e *RuntimeStatsWithCommit) String() string {
 		if e.LockKeys.Mu.SlowestReqTotalTime > 0 {
 			buf.WriteString(", slowest_rpc: {total: ")
 			buf.WriteString(strconv.FormatFloat(e.LockKeys.Mu.SlowestReqTotalTime.Seconds(), 'f', 3, 64))
-			buf.WriteString("s, region_id: ")
+
+			buf.WriteString("s, batch_recv_time: ")
+			buf.WriteString(FormatDuration(time.Duration(e.LockKeys.Mu.SlowestBatchRecvReq)))
+			buf.WriteString("s, batch_send_time: ")
+			buf.WriteString(FormatDuration(time.Duration(e.LockKeys.Mu.SlowestBatchSendReq)))
+			buf.WriteString("s, recv_resp_from_batch: ")
+			buf.WriteString(FormatDuration(time.Duration(e.LockKeys.Mu.SlowestRecvRespFromBatch)))
+
+			buf.WriteString(", region_id: ")
 			buf.WriteString(strconv.FormatUint(e.LockKeys.Mu.SlowestRegion, 10))
 			buf.WriteString(", store: ")
 			buf.WriteString(e.LockKeys.Mu.SlowestStoreAddr)
