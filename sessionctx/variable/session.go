@@ -1002,9 +1002,10 @@ type SessionVars struct {
 	// DurationWaitTS is the duration of waiting for a snapshot TS
 	DurationWaitTS time.Duration
 
-	StartPauseTotalNs time.Duration
-	StartGcNum        int64
-	Last5GCPauseNs    [5]time.Duration
+	StartPauseTotalNs  time.Duration
+	StartMallocTotalNs time.Duration
+	StartGcNum         int64
+	Last5GCPauseNs     [5]time.Duration
 
 	// PrevStmt is used to store the previous executed statement in the current session.
 	PrevStmt fmt.Stringer
@@ -2699,6 +2700,7 @@ const (
 	SlowLogOpenExecutorTimeStr  = "Open_executor_time"
 	SlowLogRunExecutorTimeStr   = "Run_executor_time"
 	SlowLogGCPauseTimeStr       = "GCPause_time"
+	SlowLogMallocgcTimeStr      = "Mallocgc_time"
 	SlowLogGCPauseNumStr        = "GCPause_Num"
 	SlowLogGC5CyclePauseTimeStr = "GC5cycle_pause_time"
 	// SlowLogPreprocSubQueriesStr is the number of pre-processed sub-queries.
@@ -2812,6 +2814,7 @@ type SlowQueryLogItems struct {
 	TimeRunExecutor   time.Duration
 	TimeGCPause       time.Duration
 	TotalGCNum        int64
+	TimeMalloc        time.Duration
 	TimeLast5GCPause  []time.Duration
 	IndexNames        string
 	StatsInfos        map[string]uint64
@@ -2919,6 +2922,8 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 			SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeGCPause.Seconds(), 'f', -1, 64)))
 		buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogGCPauseNumStr,
 			SlowLogSpaceMarkStr, strconv.FormatInt(logItems.TotalGCNum, 10)))
+		buf.WriteString(fmt.Sprintf(" %v%v%v", SlowLogMallocgcTimeStr,
+			SlowLogSpaceMarkStr, strconv.FormatFloat(logItems.TimeMalloc.Seconds(), 'f', -1, 64)))
 		buf.WriteString(fmt.Sprintf(" %v%v", SlowLogGC5CyclePauseTimeStr, SlowLogSpaceMarkStr))
 		for _, v := range s.Last5GCPauseNs {
 			buf.WriteString(fmt.Sprintf(" %v", strconv.FormatFloat(v.Seconds(), 'f', -1, 64)))

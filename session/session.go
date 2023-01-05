@@ -2125,6 +2125,7 @@ func setStartPauseTotalNs(sessVars *variable.SessionVars) {
 	var stat debug.GCStats
 	debug.ReadGCStats(&stat)
 	sessVars.StartPauseTotalNs = stat.PauseTotal
+	sessVars.StartMallocTotalNs = stat.MallocTotal
 	sessVars.StartGcNum = stat.NumGC
 }
 
