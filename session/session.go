@@ -2125,6 +2125,7 @@ func setStartPauseTotalNs(sessVars *variable.SessionVars) {
 	var stat debug.GCStats
 	debug.ReadGCStats(&stat)
 	sessVars.StartPauseTotalNs = stat.PauseTotal
+	sessVars.StartGcNum = stat.NumGC
 }
 
 func (s *session) ExecuteStmt(ctx context.Context, stmtNode ast.StmtNode) (sqlexec.RecordSet, error) {

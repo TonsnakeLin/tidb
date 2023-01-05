@@ -1430,9 +1430,9 @@ func (a *ExecStmt) CloseRecordSet(txnStartTS uint64, lastErr error) {
 	}
 }
 
-func getTotalAvgPauseTime(sessVars *variable.SessionVars) time.Duration {
+func getTotalAvgPauseTime(sessVars *variable.SessionVars) (time.Duration, int64) {
 	if !sessVars.RecordGcTimeInSlowLog {
-		return 0
+		return 0, 0
 	}
 
 	var stat debug.GCStats
@@ -1445,10 +1445,11 @@ func getTotalAvgPauseTime(sessVars *variable.SessionVars) time.Duration {
 	}
 
 	if sessVars.StartPauseTotalNs == 0 || sessVars.RecordRecentGCPauseOnly {
-		return 0
+		return 0, 0
 	}
 	totalPause := stat.PauseTotal - sessVars.StartPauseTotalNs
-	return totalPause
+	totalGCNum := stat.NumGC - sessVars.StartGcNum
+	return totalPause, totalGCNum
 }
 
 // LogSlowQuery is used to print the slow query in the log files.
@@ -1515,7 +1516,7 @@ func (a *ExecStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults bool) {
 	}
 
 	resultRows := GetResultRowsCount(stmtCtx, a.Plan)
-	totalGCPause := getTotalAvgPauseTime(sessVars)
+	totalGCPause, totalGCNum := getTotalAvgPauseTime(sessVars)
 
 	slowItems := &variable.SlowQueryLogItems{
 		TxnTS:             txnTS,
@@ -1529,6 +1530,7 @@ func (a *ExecStmt) LogSlowQuery(txnTS uint64, succ bool, hasMoreResults bool) {
 		TimeBuildExecutor: a.phaseBuildDurations[0],
 		TimeOpenExecutor:  a.phaseOpenDurations[0],
 		TimeGCPause:       totalGCPause,
+		TotalGCNum:        totalGCNum,
 		IndexNames:        indexNames,
 		StatsInfos:        statsInfos,
 		CopTasks:          copTaskInfo,
