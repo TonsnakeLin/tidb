@@ -1449,7 +1449,8 @@ func getTotalAvgPauseTime(sessVars *variable.SessionVars) (time.Duration, int64,
 	}
 	totalPause := stat.PauseTotal - sessVars.StartPauseTotalNs
 	totalGCNum := stat.NumGC - sessVars.StartGcNum
-	totalMalloc := stat.MallocTotal - sessVars.StartMallocTotalNs
+	totalMalloc := time.Duration(0)
+
 	return totalPause, totalGCNum, totalMalloc
 }
 
