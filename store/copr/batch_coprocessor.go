@@ -57,6 +57,7 @@ type batchCopTask struct {
 	// PartitionTableRegions indicates region infos for each partition table, used by scanning partitions in batch.
 	// Thus, one of `regionInfos` and `PartitionTableRegions` must be nil.
 	PartitionTableRegions []*coprocessor.TableRegions
+	IsForeGroundCop       bool
 }
 
 type batchCopResponse struct {
@@ -112,9 +113,10 @@ func deepCopyStoreTaskMap(storeTaskMap map[uint64]*batchCopTask) map[uint64]*bat
 	storeTasks := make(map[uint64]*batchCopTask)
 	for storeID, task := range storeTaskMap {
 		t := batchCopTask{
-			storeAddr: task.storeAddr,
-			cmdType:   task.cmdType,
-			ctx:       task.ctx,
+			storeAddr:       task.storeAddr,
+			cmdType:         task.cmdType,
+			ctx:             task.ctx,
+			IsForeGroundCop: task.IsForeGroundCop,
 		}
 		t.regionInfos = make([]RegionInfo, len(task.regionInfos))
 		copy(t.regionInfos, task.regionInfos)
@@ -319,10 +321,11 @@ func balanceBatchCopTask(ctx context.Context, kvStore *kvStore, originalTasks []
 		for _, task := range originalTasks {
 			taskStoreID := task.regionInfos[0].AllStores[0]
 			batchTask := &batchCopTask{
-				storeAddr:   task.storeAddr,
-				cmdType:     task.cmdType,
-				ctx:         task.ctx,
-				regionInfos: []RegionInfo{task.regionInfos[0]},
+				storeAddr:       task.storeAddr,
+				cmdType:         task.cmdType,
+				ctx:             task.ctx,
+				regionInfos:     []RegionInfo{task.regionInfos[0]},
+				IsForeGroundCop: task.IsForeGroundCop,
 			}
 			storeTaskMap[taskStoreID] = batchTask
 		}
@@ -331,9 +334,10 @@ func balanceBatchCopTask(ctx context.Context, kvStore *kvStore, originalTasks []
 		aliveStores := filterAliveStores(ctx, stores, ttl, kvStore)
 		for _, s := range aliveStores {
 			storeTaskMap[s.StoreID()] = &batchCopTask{
-				storeAddr: s.GetAddr(),
-				cmdType:   originalTasks[0].cmdType,
-				ctx:       &tikv.RPCContext{Addr: s.GetAddr(), Store: s},
+				storeAddr:       s.GetAddr(),
+				cmdType:         originalTasks[0].cmdType,
+				ctx:             &tikv.RPCContext{Addr: s.GetAddr(), Store: s},
+				IsForeGroundCop: originalTasks[0].IsForeGroundCop,
 			}
 		}
 	}
@@ -492,14 +496,17 @@ func buildBatchCopTasksForNonPartitionedTable(
 	isMPP bool,
 	ttl time.Duration,
 	balanceWithContinuity bool,
-	balanceContinuousRegionCount int64) ([]*batchCopTask, error) {
+	balanceContinuousRegionCount int64,
+	externReq bool) ([]*batchCopTask, error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
 		if config.GetGlobalConfig().UseAutoScaler {
-			return buildBatchCopTasksConsistentHash(ctx, bo, store, []*KeyRanges{ranges}, storeType, ttl)
+			return buildBatchCopTasksConsistentHash(ctx, bo, store, []*KeyRanges{ranges},
+				storeType, ttl, externReq)
 		}
-		return buildBatchCopTasksConsistentHashForPD(bo, store, []*KeyRanges{ranges}, storeType, ttl)
+		return buildBatchCopTasksConsistentHashForPD(bo, store, []*KeyRanges{ranges}, storeType, ttl, externReq)
 	}
-	return buildBatchCopTasksCore(bo, store, []*KeyRanges{ranges}, storeType, isMPP, ttl, balanceWithContinuity, balanceContinuousRegionCount)
+	return buildBatchCopTasksCore(bo, store, []*KeyRanges{ranges}, storeType,
+		isMPP, ttl, balanceWithContinuity, balanceContinuousRegionCount, externReq)
 }
 
 func buildBatchCopTasksForPartitionedTable(
@@ -512,16 +519,20 @@ func buildBatchCopTasksForPartitionedTable(
 	ttl time.Duration,
 	balanceWithContinuity bool,
 	balanceContinuousRegionCount int64,
-	partitionIDs []int64) (batchTasks []*batchCopTask, err error) {
+	partitionIDs []int64,
+	isForeGround bool) (batchTasks []*batchCopTask, err error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
 		if config.GetGlobalConfig().UseAutoScaler {
-			batchTasks, err = buildBatchCopTasksConsistentHash(ctx, bo, store, rangesForEachPhysicalTable, storeType, ttl)
+			batchTasks, err = buildBatchCopTasksConsistentHash(ctx, bo, store,
+				rangesForEachPhysicalTable, storeType, ttl, isForeGround)
 		} else {
 			// todo: remove this after AutoScaler is stable.
-			batchTasks, err = buildBatchCopTasksConsistentHashForPD(bo, store, rangesForEachPhysicalTable, storeType, ttl)
+			batchTasks, err = buildBatchCopTasksConsistentHashForPD(bo, store, rangesForEachPhysicalTable,
+				storeType, ttl, isForeGround)
 		}
 	} else {
-		batchTasks, err = buildBatchCopTasksCore(bo, store, rangesForEachPhysicalTable, storeType, isMPP, ttl, balanceWithContinuity, balanceContinuousRegionCount)
+		batchTasks, err = buildBatchCopTasksCore(bo, store, rangesForEachPhysicalTable,
+			storeType, isMPP, ttl, balanceWithContinuity, balanceContinuousRegionCount, isForeGround)
 	}
 	if err != nil {
 		return nil, err
@@ -606,7 +617,9 @@ func buildBatchCopTasksConsistentHash(
 	kvStore *kvStore,
 	rangesForEachPhysicalTable []*KeyRanges,
 	storeType kv.StoreType,
-	ttl time.Duration) (res []*batchCopTask, err error) {
+	ttl time.Duration,
+	isForeGround bool) (res []*batchCopTask, err error) {
+
 	start := time.Now()
 	const cmdType = tikvrpc.CmdBatchCop
 	cache := kvStore.GetRegionCache()
@@ -634,6 +647,7 @@ func buildBatchCopTasksConsistentHash(
 				cmdType:        cmdType,
 				storeType:      storeType,
 				partitionIndex: int64(i),
+				IsForeGround:   isForeGround,
 			})
 			regionIDs = append(regionIDs, lo.Location.Region)
 		}
@@ -683,10 +697,11 @@ func buildBatchCopTasksConsistentHash(
 			batchTask.regionInfos = append(batchTask.regionInfos, regionInfo)
 		} else {
 			batchTask := &batchCopTask{
-				storeAddr:   rpcCtx.Addr,
-				cmdType:     cmdType,
-				ctx:         rpcCtx,
-				regionInfos: []RegionInfo{regionInfo},
+				storeAddr:       rpcCtx.Addr,
+				cmdType:         cmdType,
+				ctx:             rpcCtx,
+				regionInfos:     []RegionInfo{regionInfo},
+				IsForeGroundCop: isForeGround,
 			}
 			taskMap[rpcCtx.Addr] = batchTask
 			res = append(res, batchTask)
@@ -744,7 +759,16 @@ func failpointCheckForConsistentHash(tasks []*batchCopTask) {
 // When `partitionIDs != nil`, it means that buildBatchCopTasksCore is constructing a batch cop tasks for PartitionTableScan.
 // At this time, `len(rangesForEachPhysicalTable) == len(partitionIDs)` and `rangesForEachPhysicalTable[i]` is for partition `partitionIDs[i]`.
 // Otherwise, `rangesForEachPhysicalTable[0]` indicates the range for the single physical table.
-func buildBatchCopTasksCore(bo *backoff.Backoffer, store *kvStore, rangesForEachPhysicalTable []*KeyRanges, storeType kv.StoreType, isMPP bool, ttl time.Duration, balanceWithContinuity bool, balanceContinuousRegionCount int64) ([]*batchCopTask, error) {
+func buildBatchCopTasksCore(bo *backoff.Backoffer,
+	store *kvStore,
+	rangesForEachPhysicalTable []*KeyRanges,
+	storeType kv.StoreType,
+	isMPP bool, ttl time.Duration,
+	balanceWithContinuity bool,
+	balanceContinuousRegionCount int64,
+	isForeGround bool,
+) ([]*batchCopTask, error) {
+
 	cache := store.GetRegionCache()
 	start := time.Now()
 	const cmdType = tikvrpc.CmdBatchCop
@@ -766,6 +790,7 @@ func buildBatchCopTasksCore(bo *backoff.Backoffer, store *kvStore, rangesForEach
 					cmdType:        cmdType,
 					storeType:      storeType,
 					partitionIndex: int64(i),
+					IsForeGround:   isForeGround,
 				})
 			}
 		}
@@ -795,10 +820,11 @@ func buildBatchCopTasksCore(bo *backoff.Backoffer, store *kvStore, rangesForEach
 				batchCop.regionInfos = append(batchCop.regionInfos, RegionInfo{Region: task.region, Meta: rpcCtx.Meta, Ranges: task.ranges, AllStores: allStores, PartitionIndex: task.partitionIndex})
 			} else {
 				batchTask := &batchCopTask{
-					storeAddr:   rpcCtx.Addr,
-					cmdType:     cmdType,
-					ctx:         rpcCtx,
-					regionInfos: []RegionInfo{{Region: task.region, Meta: rpcCtx.Meta, Ranges: task.ranges, AllStores: allStores, PartitionIndex: task.partitionIndex}},
+					storeAddr:       rpcCtx.Addr,
+					cmdType:         cmdType,
+					ctx:             rpcCtx,
+					regionInfos:     []RegionInfo{{Region: task.region, Meta: rpcCtx.Meta, Ranges: task.ranges, AllStores: allStores, PartitionIndex: task.partitionIndex}},
+					IsForeGroundCop: isForeGround,
 				}
 				storeTaskMap[rpcCtx.Addr] = batchTask
 			}
@@ -874,7 +900,9 @@ func convertRegionInfosToPartitionTableRegions(batchTasks []*batchCopTask, parti
 	}
 }
 
-func (c *CopClient) sendBatch(ctx context.Context, req *kv.Request, vars *tikv.Variables, option *kv.ClientSendOption) kv.Response {
+func (c *CopClient) sendBatch(ctx context.Context, req *kv.Request,
+	vars *tikv.Variables, option *kv.ClientSendOption) kv.Response {
+
 	if req.KeepOrder || req.Desc {
 		return copErrorResponse{errors.New("batch coprocessor cannot prove keep order or desc property")}
 	}
@@ -891,11 +919,13 @@ func (c *CopClient) sendBatch(ctx context.Context, req *kv.Request, vars *tikv.V
 			keyRanges = append(keyRanges, NewKeyRanges(pi.KeyRanges))
 			partitionIDs = append(partitionIDs, pi.ID)
 		}
-		tasks, err = buildBatchCopTasksForPartitionedTable(ctx, bo, c.store.kvStore, keyRanges, req.StoreType, false, 0, false, 0, partitionIDs)
+		tasks, err = buildBatchCopTasksForPartitionedTable(ctx, bo, c.store.kvStore, keyRanges,
+			req.StoreType, false, 0, false, 0, partitionIDs, !req.RequestSource.RequestSourceInternal)
 	} else {
 		// TODO: merge the if branch.
 		ranges := NewKeyRanges(req.KeyRanges.FirstPartitionRange())
-		tasks, err = buildBatchCopTasksForNonPartitionedTable(ctx, bo, c.store.kvStore, ranges, req.StoreType, false, 0, false, 0)
+		tasks, err = buildBatchCopTasksForNonPartitionedTable(ctx, bo, c.store.kvStore, ranges,
+			req.StoreType, false, 0, false, 0, !req.RequestSource.RequestSourceInternal)
 	}
 
 	if err != nil {
@@ -1042,7 +1072,8 @@ func (b *batchCopIterator) retryBatchCopTask(ctx context.Context, bo *backoff.Ba
 				ranges = append(ranges, *ran)
 			})
 		}
-		ret, err := buildBatchCopTasksForNonPartitionedTable(ctx, bo, b.store, NewKeyRanges(ranges), b.req.StoreType, false, 0, false, 0)
+		ret, err := buildBatchCopTasksForNonPartitionedTable(ctx, bo,
+			b.store, NewKeyRanges(ranges), b.req.StoreType, false, 0, false, 0, batchTask.IsForeGroundCop)
 		return ret, err
 	}
 	// Retry Partition Table Scan
@@ -1061,7 +1092,10 @@ func (b *batchCopIterator) retryBatchCopTask(ctx context.Context, bo *backoff.Ba
 		}
 		keyRanges = append(keyRanges, NewKeyRanges(ranges))
 	}
-	ret, err := buildBatchCopTasksForPartitionedTable(ctx, bo, b.store, keyRanges, b.req.StoreType, false, 0, false, 0, pid)
+
+	ret, err := buildBatchCopTasksForPartitionedTable(ctx, bo, b.store, keyRanges,
+		b.req.StoreType, false, 0, false, 0, pid, batchTask.IsForeGroundCop)
+
 	return ret, err
 }
 
@@ -1207,7 +1241,8 @@ func buildBatchCopTasksConsistentHashForPD(bo *backoff.Backoffer,
 	kvStore *kvStore,
 	rangesForEachPhysicalTable []*KeyRanges,
 	storeType kv.StoreType,
-	ttl time.Duration) (res []*batchCopTask, err error) {
+	ttl time.Duration,
+	isForeGround bool) (res []*batchCopTask, err error) {
 	const cmdType = tikvrpc.CmdBatchCop
 	var (
 		retryNum        int
@@ -1239,6 +1274,7 @@ func buildBatchCopTasksConsistentHashForPD(bo *backoff.Backoffer,
 					cmdType:        cmdType,
 					storeType:      storeType,
 					partitionIndex: int64(i),
+					IsForeGround:   isForeGround,
 				})
 				regionIDs = append(regionIDs, lo.Location.Region)
 			}
@@ -1286,10 +1322,11 @@ func buildBatchCopTasksConsistentHashForPD(bo *backoff.Backoffer,
 				batchTask.regionInfos = append(batchTask.regionInfos, regionInfo)
 			} else {
 				batchTask := &batchCopTask{
-					storeAddr:   rpcCtx.Addr,
-					cmdType:     cmdType,
-					ctx:         rpcCtx,
-					regionInfos: []RegionInfo{regionInfo},
+					storeAddr:       rpcCtx.Addr,
+					cmdType:         cmdType,
+					ctx:             rpcCtx,
+					regionInfos:     []RegionInfo{regionInfo},
+					IsForeGroundCop: isForeGround,
 				}
 				taskMap[rpcCtx.Addr] = batchTask
 				res = append(res, batchTask)

@@ -1119,6 +1119,10 @@ func (ds *DataSource) convertToIndexMergeScan(prop *property.PhysicalProperty, c
 		Columns:        ds.TblCols,
 		ColumnNames:    ds.names,
 	}
+	if ds.SCtx() != nil && ds.SCtx().GetSessionVars() != nil &&
+		!ds.SCtx().GetSessionVars().InRestrictedSQL {
+		cop.IsForeGroundCop = true
+	}
 	for _, partPath := range path.PartialIndexPaths {
 		var scan PhysicalPlan
 		if partPath.IsTablePath() {
@@ -1461,6 +1465,10 @@ func (ds *DataSource) convertToIndexScan(prop *property.PhysicalProperty,
 		PartitionNames: ds.partitionNames,
 		Columns:        ds.TblCols,
 		ColumnNames:    ds.names,
+	}
+	if ds.SCtx() != nil && ds.SCtx().GetSessionVars() != nil &&
+		!ds.SCtx().GetSessionVars().InRestrictedSQL {
+		cop.IsForeGroundCop = true
 	}
 	if !candidate.path.IsSingleScan {
 		// On this way, it's double read case.
@@ -2081,6 +2089,10 @@ func (ds *DataSource) convertToTableScan(prop *property.PhysicalProperty, candid
 		PartitionNames: ds.partitionNames,
 		Columns:        ds.TblCols,
 		ColumnNames:    ds.names,
+	}
+	if ds.SCtx() != nil && ds.SCtx().GetSessionVars() != nil &&
+		!ds.SCtx().GetSessionVars().InRestrictedSQL {
+		copTask.IsForeGroundCop = true
 	}
 	ts.PartitionInfo = copTask.partitionInfo
 	task = copTask

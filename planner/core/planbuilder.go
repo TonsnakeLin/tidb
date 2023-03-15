@@ -1755,6 +1755,9 @@ func (b *PlanBuilder) buildPhysicalIndexLookUpReader(_ context.Context, dbName m
 		extraHandleCol:   extraCol,
 		commonHandleCols: commonCols,
 	}
+	if b.ctx != nil && b.ctx.GetSessionVars() != nil && !b.ctx.GetSessionVars().InRestrictedSQL {
+		cop.IsForeGroundCop = true
+	}
 	rootT := cop.convertToRootTask(b.ctx)
 	if err := rootT.p.ResolveIndices(); err != nil {
 		return nil, err

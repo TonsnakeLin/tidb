@@ -98,6 +98,8 @@ type copTask struct {
 	// expectCnt is the expected row count of upper task, 0 for unlimited.
 	// It's used for deciding whether using paging distsql.
 	expectCnt uint64
+
+	IsForeGroundCop bool
 }
 
 func (t *copTask) invalid() bool {
@@ -563,6 +565,9 @@ func (p *PhysicalHashJoin) attach2TaskForTiFlash(tasks ...task) task {
 		tblColHists:       rTask.tblColHists,
 		indexPlanFinished: true,
 		tablePlan:         p,
+	}
+	if p.SCtx() != nil && p.SCtx().GetSessionVars() != nil && !p.SCtx().GetSessionVars().InRestrictedSQL {
+		task.IsForeGroundCop = true
 	}
 	return task
 }

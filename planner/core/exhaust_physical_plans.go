@@ -1082,6 +1082,9 @@ func (p *LogicalJoin) constructInnerTableScanTask(
 		Columns:        ds.TblCols,
 		ColumnNames:    ds.names,
 	}
+	if p.SCtx() != nil && !p.SCtx().GetSessionVars().InRestrictedSQL {
+		copTask.IsForeGroundCop = true
+	}
 	ts.PartitionInfo = copTask.partitionInfo
 	selStats := ts.stats.Scale(selectivity)
 	ts.addPushedDownSelection(copTask, selStats)
@@ -1195,6 +1198,9 @@ func (p *LogicalJoin) constructInnerIndexScanTask(
 		PartitionNames: ds.partitionNames,
 		Columns:        ds.TblCols,
 		ColumnNames:    ds.names,
+	}
+	if p.SCtx() != nil && !p.SCtx().GetSessionVars().InRestrictedSQL {
+		cop.IsForeGroundCop = true
 	}
 	if !path.IsSingleScan {
 		// On this way, it's double read case.

@@ -267,6 +267,7 @@ type copTask struct {
 	requestSource  util.RequestSource
 	RowCountHint   int // used for extra concurrency of small tasks, -1 for unknown row count
 	batchTaskList  map[uint64]*batchedCopTask
+	IsForeGround   bool
 }
 
 type batchedCopTask struct {
@@ -398,6 +399,7 @@ func buildCopTasks(bo *Backoffer, ranges *KeyRanges, opt *buildCopTaskOpt) ([]*c
 				requestSource: req.RequestSource,
 				RowCountHint:  hint,
 			}
+			task.IsForeGround = !req.RequestSource.RequestSourceInternal
 			// only keep-order need chan inside task.
 			// tasks by region error will reuse the channel of parent task.
 			if req.KeepOrder && opt.respChan {
@@ -562,14 +564,16 @@ func buildTiDBMemCopTasks(ranges *KeyRanges, req *kv.Request) ([]*copTask, error
 		}
 
 		addr := ser.IP + ":" + strconv.FormatUint(uint64(ser.StatusPort), 10)
-		tasks = append(tasks, &copTask{
+		task := &copTask{
 			ranges:       ranges,
 			respChan:     make(chan *copResponse, 2),
 			cmdType:      cmdType,
 			storeType:    req.StoreType,
 			storeAddr:    addr,
 			RowCountHint: -1,
-		})
+			IsForeGround: !req.RequestSource.RequestSourceInternal,
+		}
+		tasks = append(tasks, task)
 	}
 	return tasks, nil
 }

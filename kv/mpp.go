@@ -80,6 +80,7 @@ func GetNewestMppVersion() MppVersion {
 type MPPTaskMeta interface {
 	// GetAddress indicates which node this task should execute on.
 	GetAddress() string
+	GetIsForeGround() bool
 }
 
 // MPPQueryID means the global unique id of a mpp query.
@@ -100,6 +101,7 @@ type MPPTask struct {
 
 	PartitionTableIDs                 []int64
 	IsDisaggregatedTiFlashStaticPrune bool
+	IsForeGround                      bool
 }
 
 // ToPB generates the pb structure.
@@ -162,6 +164,7 @@ type MPPBuildTasksRequest struct {
 	StartTS   uint64
 
 	PartitionIDAndRanges []PartitionIDAndRanges
+	IsForeGroundReq      bool
 }
 
 // ExchangeCompressionMode means the compress method used in exchange operator
