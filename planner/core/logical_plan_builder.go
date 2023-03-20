@@ -400,7 +400,8 @@ func (b *PlanBuilder) buildResultSetNode(ctx context.Context, node ast.ResultSet
 		}
 		// `TableName` is not a select block, so we do not need to handle it.
 		if !isTableName && b.ctx.GetSessionVars().PlannerSelectBlockAsName != nil {
-			b.ctx.GetSessionVars().PlannerSelectBlockAsName[p.SelectBlockOffset()] = ast.HintTable{DBName: p.OutputNames()[0].DBName, TableName: p.OutputNames()[0].TblName}
+			b.ctx.GetSessionVars().PlannerSelectBlockAsName[p.SelectBlockOffset()] =
+				ast.HintTable{DBName: p.OutputNames()[0].DBName, TableName: p.OutputNames()[0].TblName}
 		}
 		// Duplicate column name in one table is not allowed.
 		// "select * from (select 1, 1) as a;" is duplicate

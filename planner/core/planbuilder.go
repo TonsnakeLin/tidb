@@ -1302,7 +1302,11 @@ func getLatestIndexInfo(ctx sessionctx.Context, id int64, startVer int64) (map[i
 	return latestIndexes, true, nil
 }
 
-func getPossibleAccessPaths(ctx sessionctx.Context, tableHints *tableHintInfo, indexHints []*ast.IndexHint, tbl table.Table, dbName, tblName model.CIStr, check bool, _ int64) ([]*util.AccessPath, error) {
+func getPossibleAccessPaths(ctx sessionctx.Context,
+	tableHints *tableHintInfo,
+	indexHints []*ast.IndexHint,
+	tbl table.Table, dbName, tblName model.CIStr, check bool, _ int64) ([]*util.AccessPath, error) {
+
 	tblInfo := tbl.Meta()
 	publicPaths := make([]*util.AccessPath, 0, len(tblInfo.Indices)+2)
 	tp := kv.TiKV

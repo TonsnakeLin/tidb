@@ -800,7 +800,10 @@ func (ds *DataSource) isPointGetConvertableSchema() bool {
 
 // findBestTask implements the PhysicalPlan interface.
 // It will enumerate all the available indices and choose a plan with least cost.
-func (ds *DataSource) findBestTask(prop *property.PhysicalProperty, planCounter *PlanCounterTp, opt *physicalOptimizeOp) (t task, cntPlan int64, err error) {
+func (ds *DataSource) findBestTask(
+	prop *property.PhysicalProperty,
+	planCounter *PlanCounterTp,
+	opt *physicalOptimizeOp) (t task, cntPlan int64, err error) {
 	// If ds is an inner plan in an IndexJoin, the IndexJoin will generate an inner plan by itself,
 	// and set inner child prop nil, so here we do nothing.
 	if prop == nil {
