@@ -613,7 +613,7 @@ func splitRegionsByKeyRanges(d *ddlCtx, keyRanges []kv.KeyRange) {
 		for _, keys := range keyRanges {
 			for {
 				// tableID is useless when scatter == false
-				_, err := s.SplitRegions(d.ctx, [][]byte{keys.StartKey, keys.EndKey}, false, nil)
+				_, err := s.SplitRegions(d.ctx, [][]byte{keys.StartKey, keys.EndKey}, false, nil, false)
 				if err == nil {
 					break
 				}
@@ -634,6 +634,7 @@ func (w *worker) onFlashbackCluster(d *ddlCtx, t *meta.Meta, job *model.Job) (ve
 			inFlashbackTest = true
 		}
 	})
+
 	// TODO: Support flashback in unistore.
 	if d.store.Name() != "TiKV" && !inFlashbackTest {
 		job.State = model.JobStateCancelled
