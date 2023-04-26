@@ -285,3 +285,5 @@ replace (
 )
 
 replace github.com/tikv/client-go/v2 => github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20230426130456-611dd4d1464b
+
+replace github.com/pingcap/kvproto => github.com/TonsnakeLin/kvproto v0.0.0-20230426124139-f36b9fcbe799

@@ -93,6 +93,8 @@ github.com/Shopify/toxiproxy v2.1.4+incompatible/go.mod h1:OXgGpZ6Cli1/URJOF1DMx
 github.com/StackExchange/wmi v0.0.0-20180725035823-b12b22c5341f/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20230426130456-611dd4d1464b h1:c5meF5qTYW3mDv2CJiNqfteILzZxsHrobqkEnuF3e0E=
 github.com/TonsnakeLin/client-go/v2 v2.0.1-0.20230426130456-611dd4d1464b/go.mod h1:TYTzf00S3xsdvB+sqxEnApj/XK/4WmohkWfv1E1/NhM=
+github.com/TonsnakeLin/kvproto v0.0.0-20230426124139-f36b9fcbe799 h1:DCRMHaSMwff2SObaglKTQM7K1IYZglt6rDbC+JnsXjY=
+github.com/TonsnakeLin/kvproto v0.0.0-20230426124139-f36b9fcbe799/go.mod h1:guCyM5N+o+ru0TsoZ1hi9lDjUMs2sIBjW3ARTEpVbnk=
 github.com/VividCortex/ewma v1.1.1/go.mod h1:2Tkkvm3sRDVXaiyucHiACn4cqf7DpdyLvmxzcbUokwA=
 github.com/VividCortex/ewma v1.2.0 h1:f58SaIzcDXrSy3kWaHNvuJgJ3Nmz59Zji6XoJR/q1ow=
 github.com/VividCortex/ewma v1.2.0/go.mod h1:nz4BbCtbLyFDeC9SUHbtcT5644juEuWfUAUnGx7j5l4=
