@@ -1844,10 +1844,11 @@ func BuildTableInfo(
 	collate string,
 ) (tbInfo *model.TableInfo, err error) {
 	tbInfo = &model.TableInfo{
-		Name:    tableName,
-		Version: model.CurrLatestTableInfoVersion,
-		Charset: charset,
-		Collate: collate,
+		Name:            tableName,
+		Version:         model.CurrLatestTableInfoVersion,
+		Charset:         charset,
+		Collate:         collate,
+		TableEncryption: true,
 	}
 	tblColumns := make([]*table.Column, 0, len(cols))
 	for _, v := range cols {
