@@ -613,7 +613,7 @@ func splitRegionsByKeyRanges(d *ddlCtx, keyRanges []kv.KeyRange) {
 		for _, keys := range keyRanges {
 			for {
 				// tableID is useless when scatter == false
-				_, err := s.SplitRegions(d.ctx, [][]byte{keys.StartKey, keys.EndKey}, false, nil, false)
+				_, err := s.SplitRegions(d.ctx, [][]byte{keys.StartKey, keys.EndKey}, false, nil, uint32(0))
 				if err == nil {
 					break
 				}

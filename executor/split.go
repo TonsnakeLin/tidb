@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/pingcap/kvproto/pkg/metapb"
+	"github.com/pingcap/tidb/ddl"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/parser/mysql"
@@ -99,7 +100,8 @@ func (e *SplitIndexRegionExec) splitIndexRegion(ctx context.Context) error {
 	start := time.Now()
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, e.ctx.GetSessionVars().GetSplitRegionTimeout())
 	defer cancel()
-	regionIDs, err := s.SplitRegions(ctxWithTimeout, e.splitIdxKeys, true, &e.tableInfo.ID, e.tableInfo.TableEncryption)
+	regionIDs, err := s.SplitRegions(ctxWithTimeout, e.splitIdxKeys,
+		true, &e.tableInfo.ID, ddl.GetSplitRegionEncryptFlag(e.tableInfo))
 	if err != nil {
 		logutil.BgLogger().Warn("split table index region failed",
 			zap.String("table", e.tableInfo.Name.L),
@@ -369,7 +371,8 @@ func (e *SplitTableRegionExec) splitTableRegion(ctx context.Context) error {
 	defer cancel()
 	ctxWithTimeout = kv.WithInternalSourceType(ctxWithTimeout, kv.InternalTxnDDL)
 
-	regionIDs, err := s.SplitRegions(ctxWithTimeout, e.splitKeys, true, &e.tableInfo.ID, e.tableInfo.TableEncryption)
+	regionIDs, err := s.SplitRegions(ctxWithTimeout, e.splitKeys, true,
+		&e.tableInfo.ID, ddl.GetSplitRegionEncryptFlag(e.tableInfo))
 	if err != nil {
 		logutil.BgLogger().Warn("split table region failed",
 			zap.String("table", e.tableInfo.Name.L),
