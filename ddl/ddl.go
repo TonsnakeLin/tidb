@@ -100,8 +100,8 @@ const (
 )
 
 const (
-	SPLIT_REQUEST_FROM_TIDB_NOT_ENCRYPT_DERIVED_REGION uint32 = 0x8000
-	SPLIT_REQUEST_FROM_TIDB_ENCRYPTING_DERIVED_REGION  uint32 = 0x8001
+	NotEncryptDerivedRegion uint32 = 0x8000
+	EncryptDerivedRegion    uint32 = 0x8001
 )
 
 // OnExist specifies what to do when a new object has a name collision.
@@ -1827,7 +1827,7 @@ func addHistoryDDLJob2Table(sess *sess.Session, job *model.Job, updateRawArgs bo
 // GetSplitRegionEncryptFlag gets the encrption flag for splitting regions.
 func GetSplitRegionEncryptFlag(tblInfo *model.TableInfo) uint32 {
 	if tblInfo.TableEncryption {
-		return SPLIT_REQUEST_FROM_TIDB_ENCRYPTING_DERIVED_REGION
+		return EncryptDerivedRegion
 	}
-	return SPLIT_REQUEST_FROM_TIDB_NOT_ENCRYPT_DERIVED_REGION
+	return NotEncryptDerivedRegion
 }

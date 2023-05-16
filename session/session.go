@@ -3107,7 +3107,7 @@ func splitAndScatterTable(store kv.Storage, tableIDs []int64) {
 		var regionIDs []uint64
 		for _, id := range tableIDs {
 			regionIDs = append(regionIDs, ddl.SplitRecordRegion(ctxWithTimeout, s, id, variable.DefTiDBScatterRegion,
-				ddl.SPLIT_REQUEST_FROM_TIDB_NOT_ENCRYPT_DERIVED_REGION))
+				ddl.NotEncryptDerivedRegion))
 		}
 		if variable.DefTiDBScatterRegion {
 			ddl.WaitScatterRegionFinish(ctxWithTimeout, s, regionIDs...)
