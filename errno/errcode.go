@@ -1118,6 +1118,8 @@ const (
 	ErrCannotResumeDDLJob = 8261
 	ErrPausedDDLJob       = 8262
 
+	ErrTableEncryptionNotEnable = 8263
+
 	// Resource group errors.
 	ErrResourceGroupExists            = 8248
 	ErrResourceGroupNotExists         = 8249

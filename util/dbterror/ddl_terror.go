@@ -439,7 +439,9 @@ var (
 	ErrUnsupportedTTLReferencedByFK = ClassDDL.NewStd(mysql.ErrUnsupportedTTLReferencedByFK)
 	// ErrUnsupportedPrimaryKeyTypeWithTTL returns when create or alter a table with TTL options but the primary key is not supported
 	ErrUnsupportedPrimaryKeyTypeWithTTL = ClassDDL.NewStd(mysql.ErrUnsupportedPrimaryKeyTypeWithTTL)
-
+	// ErrInvalidEncryptionOption returns when en encryption option is invalid.
+	ErrInvalidEncryptionOption  = ClassDDL.NewStd(mysql.ErrInvalidEncryptionOption)
+	ErrTableEncryptionNotEnable = ClassDDL.NewStd(mysql.ErrTableEncryptionNotEnable)
 	// ErrNotSupportedYet returns when tidb does not support this feature.
 	ErrNotSupportedYet = ClassDDL.NewStd(mysql.ErrNotSupportedYet)
 )

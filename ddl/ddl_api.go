@@ -32,6 +32,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/tidb/config"
+	sess "github.com/pingcap/tidb/ddl/internal/session"
 	"github.com/pingcap/tidb/ddl/label"
 	"github.com/pingcap/tidb/ddl/resourcegroup"
 	ddlutil "github.com/pingcap/tidb/ddl/util"
@@ -91,6 +92,11 @@ const (
 	tiflashCheckPendingTablesRetry = 7
 	// DefaultResourceGroupName is the default resource group name.
 	DefaultResourceGroupName = "default"
+
+	// The index of column `Value` for the result of `show config
+	showConfigValueIndex = 3
+	plaintText           = "plaintext"
+	raftKV2              = "raft-kv2"
 )
 
 func (d *ddl) CreateSchema(ctx sessionctx.Context, stmt *ast.CreateDatabaseStmt) (err error) {
@@ -160,6 +166,67 @@ func (d *ddl) CreateSchema(ctx sessionctx.Context, stmt *ast.CreateDatabaseStmt)
 		onExist = OnExistIgnore
 	}
 	return d.CreateSchemaWithInfo(ctx, dbInfo, onExist)
+}
+
+func checkTableEncryption(sctx sessionctx.Context, p *sess.Pool, tableEncryption bool) error {
+	if !tableEncryption {
+		return nil
+	}
+
+	if p == nil {
+		// todo: we need to new a session and execute the sql if we have no session pool
+		return dbterror.ErrTableEncryptionNotEnable.
+			GenWithStackByArgs("no session pool")
+	}
+
+	se, err := p.Get()
+	if err != nil {
+		logutil.BgLogger().Error("checkTableEncryption failed", zap.Error(err))
+		return err
+	}
+	defer p.Put(se)
+
+	ctx := kv.WithInternalSourceType(context.Background(), "check-table-encryption")
+	exec, _ := se.(sqlexec.SQLExecutor)
+
+	sql := "show config where name='security.encryption.data-encryption-method' and type = 'tikv'"
+	rs, err := exec.ExecuteInternal(ctx, sql)
+	if err != nil {
+		return err
+	}
+	rows, err := sqlexec.DrainRecordSet(ctx, rs, 3)
+	if err != nil {
+		return err
+	}
+	// rs.Close()  // Do we need call rs.Close
+	for _, row := range rows {
+		encryptionMethod := row.GetString(showConfigValueIndex)
+		if encryptionMethod == plaintText {
+			return dbterror.ErrTableEncryptionNotEnable.
+				GenWithStackByArgs("data-encryption-method of tikv is plaintext")
+		}
+
+	}
+
+	sql = "show config where name='storage.engine' and type = 'tikv'"
+	rs, err = exec.ExecuteInternal(ctx, sql)
+	if err != nil {
+		return err
+	}
+	rows, err = sqlexec.DrainRecordSet(ctx, rs, 3)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		storageEngine := row.GetString(showConfigValueIndex)
+		if storageEngine != raftKV2 {
+			return dbterror.ErrTableEncryptionNotEnable.
+				GenWithStackByArgs("storage.engine of tikv is not raftKV2")
+		}
+
+	}
+
+	return err
 }
 
 func (d *ddl) CreateSchemaWithInfo(
@@ -1844,11 +1911,10 @@ func BuildTableInfo(
 	collate string,
 ) (tbInfo *model.TableInfo, err error) {
 	tbInfo = &model.TableInfo{
-		Name:            tableName,
-		Version:         model.CurrLatestTableInfoVersion,
-		Charset:         charset,
-		Collate:         collate,
-		TableEncryption: true,
+		Name:    tableName,
+		Version: model.CurrLatestTableInfoVersion,
+		Charset: charset,
+		Collate: collate,
 	}
 	tblColumns := make([]*table.Column, 0, len(cols))
 	for _, v := range cols {
@@ -2065,7 +2131,7 @@ func ShouldBuildClusteredIndex(ctx sessionctx.Context, opt *ast.IndexOption, isS
 // name length and column count.
 // (checkTableInfoValid is also used in repairing objects which don't perform
 // these checks. Perhaps the two functions should be merged together regardless?)
-func checkTableInfoValidExtra(tbInfo *model.TableInfo) error {
+func checkTableInfoValidExtra(sctx sessionctx.Context, p *sess.Pool, tbInfo *model.TableInfo) error {
 	if err := checkTooLongTable(tbInfo.Name); err != nil {
 		return err
 	}
@@ -2088,6 +2154,10 @@ func checkTableInfoValidExtra(tbInfo *model.TableInfo) error {
 
 	// FIXME: perform checkConstraintNames
 	if err := checkCharsetAndCollation(tbInfo.Charset, tbInfo.Collate); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := checkTableEncryption(sctx, p, tbInfo.TableEncryption); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -2236,7 +2306,7 @@ func buildTableInfoWithCheck(ctx sessionctx.Context, s *ast.CreateTableStmt, dbC
 	if err = checkTableInfoValidWithStmt(ctx, tbInfo, s); err != nil {
 		return nil, err
 	}
-	if err = checkTableInfoValidExtra(tbInfo); err != nil {
+	if err = checkTableInfoValidExtra(ctx, nil, tbInfo); err != nil {
 		return nil, err
 	}
 	return tbInfo, nil
@@ -2465,7 +2535,7 @@ func (d *ddl) createTableWithInfoJob(
 		}
 	}
 
-	if err := checkTableInfoValidExtra(tbInfo); err != nil {
+	if err := checkTableInfoValidExtra(ctx, d.sessPool, tbInfo); err != nil {
 		return nil, err
 	}
 
@@ -3149,6 +3219,15 @@ func handleTableOptions(options []*ast.TableOption, tbInfo *model.TableInfo) err
 
 			tbInfo.TTLInfo = ttlInfo
 			ttlOptionsHandled = true
+		case ast.TableOptionEncryption:
+			switch strings.ToUpper(op.StrValue) {
+			case "Y":
+				tbInfo.TableEncryption = true
+			case "N":
+				tbInfo.TableEncryption = false
+			default:
+				return errors.Trace(dbterror.ErrInvalidEncryptionOption)
+			}
 		}
 	}
 	shardingBits := shardingBits(tbInfo)
@@ -3513,6 +3592,8 @@ func (d *ddl) AlterTable(ctx context.Context, sctx sessionctx.Context, stmt *ast
 					err = d.AlterTableTTLInfoOrEnable(sctx, ident, ttlInfo, ttlEnable, ttlJobInterval)
 
 					ttlOptionsHandled = true
+				case ast.TableOptionEncryption:
+					err = dbterror.ErrUnsupportedAlterTableOption
 				default:
 					err = dbterror.ErrUnsupportedAlterTableOption
 				}
