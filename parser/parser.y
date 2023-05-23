@@ -3140,7 +3140,7 @@ ColumnDef:
 	ColumnName Type ColumnOptionListOpt
 	{
 		colDef := &ast.ColumnDef{Name: $1.(*ast.ColumnName), Tp: $2.(*types.FieldType), Options: $3.([]*ast.ColumnOption)}
-	        if err := colDef.Validate(); err != nil {
+		if err := colDef.Validate(); err != nil {
 			yylex.AppendError(err)
 			return 1
 		}
@@ -3154,7 +3154,7 @@ ColumnDef:
 		options = append(options, $3.([]*ast.ColumnOption)...)
 		tp.AddFlag(mysql.UnsignedFlag)
 		colDef := &ast.ColumnDef{Name: $1.(*ast.ColumnName), Tp: tp, Options: options}
-	        if err := colDef.Validate(); err != nil {
+		if err := colDef.Validate(); err != nil {
 			yylex.AppendError(err)
 			return 1
 		}
