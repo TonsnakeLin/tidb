@@ -14751,8 +14751,9 @@ EncryptionOpt:
 		// Parse it but will ignore it
 		switch $1 {
 		case "Y", "y":
-			yylex.AppendError(yylex.Errorf("The ENCRYPTION clause is parsed but ignored by all storage engines."))
-			parser.lastErrorAsWarn()
+			// yylex.AppendError(yylex.Errorf("The ENCRYPTION clause is parsed but ignored by all storage engines."))
+			// parser.lastErrorAsWarn()
+			break
 		case "N", "n":
 			break
 		default:
