@@ -53,11 +53,12 @@ const (
 
 // Task represents the task of distribute framework.
 type Task struct {
-	ID              int64
-	Key             string
-	Type            string
-	State           string
-	Step            int64
+	ID    int64
+	Key   string
+	Type  string
+	State string
+	Step  int64
+	// DispatcherID is not used now.
 	DispatcherID    string
 	Concurrency     uint64
 	StartTime       time.Time
@@ -74,10 +75,14 @@ func (t *Task) IsFinished() bool {
 // Subtask represents the subtask of distribute framework.
 // Each task is divided into multiple subtasks by dispatcher.
 type Subtask struct {
-	ID          int64
-	Type        string
-	TaskID      int64
-	State       string
+	ID   int64
+	Step int64
+	Type string
+	// taken from task_key of the subtask table
+	TaskID int64
+	State  string
+	// SchedulerID is the ID of scheduler, right now it's the same as instance_id, exec_id.
+	// its value is IP:PORT, see GenerateExecID
 	SchedulerID string
 	StartTime   uint64
 	EndTime     time.Time
@@ -104,8 +109,8 @@ type MinimalTask interface {
 const (
 	// TaskTypeExample is TaskType of Example.
 	TaskTypeExample = "Example"
-	// LoadData is TaskType of LoadData.
-	LoadData = "LoadData"
+	// ImportInto is TaskType of ImportInto.
+	ImportInto = "ImportInto"
 )
 
 // Type2Int converts task type to int.
@@ -113,7 +118,7 @@ func Type2Int(t string) int {
 	switch t {
 	case TaskTypeExample:
 		return 1
-	case LoadData:
+	case ImportInto:
 		return 2
 	default:
 		return 0
@@ -126,7 +131,7 @@ func Int2Type(i int) string {
 	case 1:
 		return TaskTypeExample
 	case 2:
-		return LoadData
+		return ImportInto
 	default:
 		return ""
 	}

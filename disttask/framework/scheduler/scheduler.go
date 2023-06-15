@@ -20,10 +20,14 @@ import (
 	"sync"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/failpoint"
 	"github.com/pingcap/tidb/disttask/framework/proto"
 	"github.com/pingcap/tidb/util/logutil"
 	"go.uber.org/zap"
 )
+
+// TestSyncChan is used to sync the test.
+var TestSyncChan = make(chan struct{})
 
 // InternalSchedulerImpl is the implementation of InternalScheduler.
 type InternalSchedulerImpl struct {
@@ -126,7 +130,8 @@ func (s *InternalSchedulerImpl) Run(ctx context.Context, task *proto.Task) error
 	}
 
 	concurrentSubtask := false
-	if opts, ok := schedulerOptions[task.Type]; ok && opts.ConcurrentSubtask {
+	key := getKey(task.Type, task.Step)
+	if opts, ok := schedulerOptions[key]; ok && opts.ConcurrentSubtask {
 		concurrentSubtask = true
 	}
 	for {
@@ -200,8 +205,9 @@ func (s *InternalSchedulerImpl) runSubtask(ctx context.Context, scheduler Schedu
 }
 
 func (s *InternalSchedulerImpl) onSubtaskFinished(ctx context.Context, scheduler Scheduler, subtask *proto.Subtask) {
+	var subtaskMeta []byte
 	if err := s.getError(); err == nil {
-		if err := scheduler.OnSubtaskFinished(ctx, subtask.Meta); err != nil {
+		if subtaskMeta, err = scheduler.OnSubtaskFinished(ctx, subtask.Meta); err != nil {
 			s.onError(err)
 		}
 	}
@@ -213,7 +219,13 @@ func (s *InternalSchedulerImpl) onSubtaskFinished(ctx context.Context, scheduler
 		}
 		return
 	}
-	s.updateSubtaskStateAndError(subtask.ID, proto.TaskStateSucceed, "")
+	if err := s.taskTable.FinishSubtask(subtask.ID, subtaskMeta); err != nil {
+		s.onError(err)
+	}
+	failpoint.Inject("syncAfterSubtaskFinish", func() {
+		TestSyncChan <- struct{}{}
+		<-TestSyncChan
+	})
 }
 
 func (s *InternalSchedulerImpl) runMinimalTask(minimalTaskCtx context.Context, minimalTask proto.MinimalTask, tp string, step int64) {
@@ -296,17 +308,19 @@ func (s *InternalSchedulerImpl) Rollback(ctx context.Context, task *proto.Task) 
 }
 
 func createScheduler(task *proto.Task) (Scheduler, error) {
-	constructor, ok := schedulerConstructors[task.Type]
+	key := getKey(task.Type, task.Step)
+	constructor, ok := schedulerConstructors[key]
 	if !ok {
-		return nil, errors.Errorf("constructor of scheduler for type %s not found", task.Type)
+		return nil, errors.Errorf("constructor of scheduler for key %s not found", key)
 	}
-	return constructor(task.Meta, task.Step)
+	return constructor(task.ID, task.Meta, task.Step)
 }
 
 func createSubtaskExecutor(minimalTask proto.MinimalTask, tp string, step int64) (SubtaskExecutor, error) {
-	constructor, ok := subtaskExecutorConstructors[tp]
+	key := getKey(tp, step)
+	constructor, ok := subtaskExecutorConstructors[key]
 	if !ok {
-		return nil, errors.Errorf("constructor of subtask executor for type %s not found", tp)
+		return nil, errors.Errorf("constructor of subtask executor for key %s not found", key)
 	}
 	return constructor(minimalTask, step)
 }

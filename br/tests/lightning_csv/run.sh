@@ -45,21 +45,19 @@ function run_with() {
 
 rm -rf $TEST_DIR/lightning.log
 run_with "local" "tests/$TEST_NAME/config-pause-global.toml"
-grep -F 'pause pd scheduler of global scope' $TEST_DIR/lightning.log
-if grep -F 'pause pd scheduler of table scope' $TEST_DIR/lightning.log; then
-	echo "should not contain 'table scope'"
-	exit 1
-fi
+check_contains 'pause pd scheduler of global scope' $TEST_DIR/lightning.log
+check_not_contains 'pause pd scheduler of table scope' $TEST_DIR/lightning.log
 
 rm -rf $TEST_DIR/lightning.log
 run_with "local" "tests/$TEST_NAME/config.toml"
-grep -F 'pause pd scheduler of table scope' $TEST_DIR/lightning.log
-if grep -F 'pause pd scheduler of global scope' $TEST_DIR/lightning.log; then
-	echo "should not contain 'global scope'"
-	exit 1
-fi
+check_contains 'pause pd scheduler of table scope' $TEST_DIR/lightning.log
+check_not_contains 'pause pd scheduler of global scope' $TEST_DIR/lightning.log
+check_contains 'switch tikv mode"] [mode=Import' $TEST_DIR/lightning.log
+check_contains 'switch tikv mode"] [mode=Normal' $TEST_DIR/lightning.log
 
+rm -rf $TEST_DIR/lightning.log
 run_with "tidb" "tests/$TEST_NAME/config.toml"
+check_not_contains 'switch tikv mode' $TEST_DIR/lightning.log
 
 set +e
 run_lightning --backend local -d "tests/$TEST_NAME/errData" --log-file "$TEST_DIR/lightning-err.log" 2>/dev/null
