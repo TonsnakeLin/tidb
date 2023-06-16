@@ -1086,10 +1086,6 @@ func ConstructResultOfShowCreateTable(ctx sessionctx.Context, tableInfo *model.T
 			}
 		}
 
-		if tableInfo.TableEncryption {
-			fmt.Fprintf(buf, " ENCRYPTION='Y'")
-		}
-
 		if len(col.Comment) > 0 {
 			buf.WriteString(fmt.Sprintf(" COMMENT '%s'", format.OutputFormat(col.Comment)))
 		}
@@ -1206,6 +1202,10 @@ func ConstructResultOfShowCreateTable(ctx sessionctx.Context, tableInfo *model.T
 	// Displayed if the compression typed is set.
 	if len(tableInfo.Compression) != 0 {
 		fmt.Fprintf(buf, " COMPRESSION='%s'", tableInfo.Compression)
+	}
+
+	if tableInfo.TableEncryption {
+		fmt.Fprintf(buf, " ENCRYPTION='Y'")
 	}
 
 	incrementAllocator := allocators.Get(autoid.RowIDAllocType)
