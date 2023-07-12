@@ -99,8 +99,12 @@ const (
 )
 
 const (
-	NotEncryptDerivedRegion uint32 = 0x8000
-	EncryptDerivedRegion    uint32 = 0x8001
+	// CreateTableWithEncryptionFlag is the encryption flag used by creating table with encryption option.
+	CreateTableNoEncryptionFlag uint32 = 0x8000
+	// CreateTableNoEncryptionFlag is the encryption flag used by creating table without encryption option.
+	CreateTableWithEncryptionFlag uint32 = 0x8001
+	// SplitTableRegionEncryptionFlag is the encryption flag used by splitting table or index.
+	SplitTableRegionEncryptionFlag uint32 = 0x4000
 )
 
 // OnExist specifies what to do when a new object has a name collision.
@@ -1845,10 +1849,17 @@ func addHistoryDDLJob2Table(sess *sess.Session, job *model.Job, updateRawArgs bo
 	return errors.Trace(err)
 }
 
-// GetSplitRegionEncryptFlag gets the encrption flag for splitting regions.
-func GetSplitRegionEncryptFlag(tblInfo *model.TableInfo) uint32 {
+// GetSREncryptFlagForCreateTable gets the encrption flag for splitting regions when creating table.
+// SR means splitting regions.
+func GetSREncryptFlagForCreateTable(tblInfo *model.TableInfo) uint32 {
 	if tblInfo.TableEncryption {
-		return EncryptDerivedRegion
+		return CreateTableWithEncryptionFlag
 	}
-	return NotEncryptDerivedRegion
+	return CreateTableNoEncryptionFlag
+}
+
+// GetSREncryptFlagForSplitTable gets the encrption flag for splitting regions when executing
+// splitting table or spliting regions. SR means splitting regions.
+func GetSREncryptFlagForSplitTable(tblInfo *model.TableInfo) uint32 {
+	return SplitTableRegionEncryptionFlag
 }

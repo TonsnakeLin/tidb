@@ -43,7 +43,7 @@ func splitPartitionTableRegion(ctx sessionctx.Context, store kv.SplittableStore,
 	} else {
 		for _, def := range pi.Definitions {
 			regionIDs = append(regionIDs, SplitRecordRegion(ctxWithTimeout, store,
-				def.ID, scatter, GetSplitRegionEncryptFlag(tbInfo)))
+				def.ID, scatter, GetSREncryptFlagForCreateTable(tbInfo)))
 		}
 	}
 	if scatter {
@@ -60,7 +60,7 @@ func splitTableRegion(ctx sessionctx.Context, store kv.SplittableStore, tbInfo *
 		regionIDs = preSplitPhysicalTableByShardRowID(ctxWithTimeout, store, tbInfo, tbInfo.ID, scatter)
 	} else {
 		regionIDs = append(regionIDs, SplitRecordRegion(ctxWithTimeout, store,
-			tbInfo.ID, scatter, GetSplitRegionEncryptFlag(tbInfo)))
+			tbInfo.ID, scatter, GetSREncryptFlagForCreateTable(tbInfo)))
 	}
 	if scatter {
 		WaitScatterRegionFinish(ctxWithTimeout, store, regionIDs...)
@@ -111,7 +111,7 @@ func preSplitPhysicalTableByShardRowID(ctx context.Context, store kv.SplittableS
 	}
 	var err error
 	regionIDs, err := store.SplitRegions(ctx, splitTableKeys, scatter,
-		&tbInfo.ID, GetSplitRegionEncryptFlag(tbInfo))
+		&tbInfo.ID, GetSREncryptFlagForCreateTable(tbInfo))
 	if err != nil {
 		logutil.BgLogger().Warn("[ddl] pre split some table regions failed",
 			zap.Stringer("table", tbInfo.Name), zap.Int("successful region count", len(regionIDs)), zap.Error(err))
@@ -142,7 +142,7 @@ func splitIndexRegion(store kv.SplittableStore, tblInfo *model.TableInfo, scatte
 		splitKeys = append(splitKeys, indexPrefix)
 	}
 	regionIDs, err := store.SplitRegions(context.Background(), splitKeys,
-		scatter, &tblInfo.ID, GetSplitRegionEncryptFlag(tblInfo))
+		scatter, &tblInfo.ID, GetSREncryptFlagForSplitTable(tblInfo))
 	if err != nil {
 		logutil.BgLogger().Warn("[ddl] pre split some table index regions failed",
 			zap.Stringer("table", tblInfo.Name), zap.Int("successful region count", len(regionIDs)), zap.Error(err))

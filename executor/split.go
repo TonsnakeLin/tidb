@@ -101,7 +101,7 @@ func (e *SplitIndexRegionExec) splitIndexRegion(ctx context.Context) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, e.ctx.GetSessionVars().GetSplitRegionTimeout())
 	defer cancel()
 	regionIDs, err := s.SplitRegions(ctxWithTimeout, e.splitIdxKeys,
-		true, &e.tableInfo.ID, ddl.GetSplitRegionEncryptFlag(e.tableInfo))
+		true, &e.tableInfo.ID, ddl.GetSREncryptFlagForSplitTable(e.tableInfo))
 	if err != nil {
 		logutil.BgLogger().Warn("split table index region failed",
 			zap.String("table", e.tableInfo.Name.L),
@@ -372,7 +372,7 @@ func (e *SplitTableRegionExec) splitTableRegion(ctx context.Context) error {
 	ctxWithTimeout = kv.WithInternalSourceType(ctxWithTimeout, kv.InternalTxnDDL)
 
 	regionIDs, err := s.SplitRegions(ctxWithTimeout, e.splitKeys, true,
-		&e.tableInfo.ID, ddl.GetSplitRegionEncryptFlag(e.tableInfo))
+		&e.tableInfo.ID, ddl.GetSREncryptFlagForSplitTable(e.tableInfo))
 	if err != nil {
 		logutil.BgLogger().Warn("split table region failed",
 			zap.String("table", e.tableInfo.Name.L),
