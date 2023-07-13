@@ -2486,6 +2486,12 @@ func BuildTableInfoWithStmt(ctx sessionctx.Context, s *ast.CreateTableStmt, dbCh
 		return nil, errors.Trace(err)
 	}
 
+	if tbInfo.Partition != nil && tbInfo.TableEncryption {
+		tbInfo.TableEncryption = false
+		ctx.GetSessionVars().StmtCtx.AppendWarning(dbterror.ErrTableEncryptionNotEnable.
+			GenWithStackByArgs("partition table doesn't support encrypt"))
+	}
+
 	return tbInfo, nil
 }
 
