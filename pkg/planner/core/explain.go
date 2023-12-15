@@ -461,7 +461,6 @@ func (p *basePhysicalAgg) explainInfo(normalized bool) string {
 		sortedExplainExpressionList = expression.SortedExplainNormalizedExpressionList
 	}
 
-
 	builder := &strings.Builder{}
 	var strs []string
 	if len(p.GroupByItems) > 0 {
