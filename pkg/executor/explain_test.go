@@ -756,6 +756,7 @@ func TestExplainFormatPlanCache(t *testing.T) {
 
 // For statement `SELECT DISTINCT col1, col2 FROM t LIMIT 3`, where NO composite index for (col1, col2),
 // we can push the `limit` information into HashAgg to speed up the execution.
+// If the sql contains agg function other than firstrow, we can't push the `limit` information into HashAgg.
 func TestDistinctLimitOptimization(t *testing.T) {
 	store := testkit.CreateMockStore(t)
 	tk := testkit.NewTestKit(t, store)
@@ -769,15 +770,75 @@ func TestDistinctLimitOptimization(t *testing.T) {
 	}
 	tk.MustExec("update t set col1=concat(col1,id);")
 	tk.MustExec("analyze table t;")
+
+	// distinct + limit: push
 	tk.MustQuery("explain select distinct col1,col2 from t limit 3;").Check(testkit.Rows(
 		"Limit_9 3.00 root  offset:0, count:3",
 		"└─HashAgg_14 3.00 root  group by:test.t.col1, test.t.col2, limit:3, funcs:firstrow(test.t.col1)->test.t.col1, funcs:firstrow(test.t.col2)->test.t.col2",
 		"  └─TableReader_15 3.00 root  data:HashAgg_10",
 		"    └─HashAgg_10 3.00 cop[tikv]  group by:test.t.col1, test.t.col2, limit:3",
 		"      └─TableFullScan_13 32.00 cop[tikv] table:t keep order:false"))
-	res := tk.MustQuery("explain analyze select distinct col1,col2 from t limit 3;")
+	rows := tk.MustQuery("explain analyze select distinct col1,col2 from t limit 3;").Rows()
 	// HashAgg_14
-	require.Contains(t, res.Rows()[1][6], "limit:3")
+	require.Contains(t, rows[1][6], "limit:3")
 	// HashAgg_10
-	require.Contains(t, res.Rows()[3][6], "limit:3")
+	require.Contains(t, rows[3][6], "limit:3")
+
+	// group by + limit: push
+	tk.MustQuery("explain select col1,col2 from t group by col1,col2 limit 3;").Check(testkit.Rows(
+		"Limit_10 3.00 root  offset:0, count:3",
+		"└─HashAgg_15 3.00 root  group by:test.t.col1, test.t.col2, limit:3, funcs:firstrow(test.t.col1)->test.t.col1, funcs:firstrow(test.t.col2)->test.t.col2",
+		"  └─TableReader_16 3.00 root  data:HashAgg_11",
+		"    └─HashAgg_11 3.00 cop[tikv]  group by:test.t.col1, test.t.col2, limit:3",
+		"      └─TableFullScan_14 32.00 cop[tikv] table:t keep order:false"))
+	rows = tk.MustQuery("explain analyze select col1,col2 from t group by col1,col2 limit 3;").Rows()
+	// HashAgg_15
+	require.Contains(t, rows[1][6], "limit:3")
+	// HashAgg_11
+	require.Contains(t, rows[3][6], "limit:3")
+
+	// distinct + group by + limit: push
+	tk.MustQuery("explain select distinct col1,col2 from t group by col1,col2 limit 3;").Check(testkit.Rows(
+		"Limit_12 3.00 root  offset:0, count:3",
+		"└─HashAgg_17 3.00 root  group by:test.t.col1, test.t.col2, limit:3, funcs:firstrow(test.t.col1)->test.t.col1, funcs:firstrow(test.t.col2)->test.t.col2",
+		"  └─TableReader_18 3.00 root  data:HashAgg_13",
+		"    └─HashAgg_13 3.00 cop[tikv]  group by:test.t.col1, test.t.col2, limit:3",
+		"      └─TableFullScan_16 32.00 cop[tikv] table:t keep order:false"))
+	rows = tk.MustQuery("explain analyze select distinct col1,col2 from t group by col1,col2 limit 3;").Rows()
+	// HashAgg_17
+	require.Contains(t, rows[1][6], "limit:3")
+	// HashAgg_13
+	require.Contains(t, rows[3][6], "limit:3")
+
+	// other agg + group by + limit: not push
+	tk.MustQuery("explain select col1,col2,count(col2) from t group by col1,col2 limit 3;").Check(testkit.Rows(
+		"Projection_7 3.00 root  test.t.col1, test.t.col2, Column#4",
+		"└─Limit_10 3.00 root  offset:0, count:3",
+		"  └─HashAgg_15 3.00 root  group by:test.t.col1, test.t.col2, funcs:count(Column#5)->Column#4, funcs:firstrow(test.t.col1)->test.t.col1, funcs:firstrow(test.t.col2)->test.t.col2",
+		"    └─TableReader_16 3.00 root  data:HashAgg_11",
+		"      └─HashAgg_11 3.00 cop[tikv]  group by:test.t.col1, test.t.col2, funcs:count(test.t.col2)->Column#5",
+		"        └─TableFullScan_14 32.00 cop[tikv] table:t keep order:false"))
+	rows = tk.MustQuery("explain analyze select col1,col2,count(col2) from t group by col1,col2 limit 3;").Rows()
+	// HashAgg_15
+	require.Contains(t, rows[2][6], "group by:test.t.col1, test.t.col2")
+	require.NotContains(t, rows[2][6], "limit:")
+	// HashAgg_11
+	require.Contains(t, rows[4][6], "group by:test.t.col1, test.t.col2")
+	require.NotContains(t, rows[4][6], "limit:")
+
+	// distinct + other agg + group by + limit: not push
+	tk.MustQuery("explain select distinct col1,col2,count(col2) from t group by col1,col2 limit 3;").Check(testkit.Rows(
+		"Projection_9 3.00 root  test.t.col1, test.t.col2, Column#4",
+		"└─Limit_12 3.00 root  offset:0, count:3",
+		"  └─HashAgg_17 3.00 root  group by:test.t.col1, test.t.col2, funcs:count(Column#5)->Column#4, funcs:firstrow(test.t.col1)->test.t.col1, funcs:firstrow(test.t.col2)->test.t.col2",
+		"    └─TableReader_18 3.00 root  data:HashAgg_13",
+		"      └─HashAgg_13 3.00 cop[tikv]  group by:test.t.col1, test.t.col2, funcs:count(test.t.col2)->Column#5",
+		"        └─TableFullScan_16 32.00 cop[tikv] table:t keep order:false"))
+	rows = tk.MustQuery("explain analyze  select distinct col1,col2,count(col2) from t group by col1,col2 limit 3;").Rows()
+	// HashAgg_17
+	require.Contains(t, rows[2][6], "group by:test.t.col1, test.t.col2")
+	require.NotContains(t, rows[2][6], "limit:")
+	// HashAgg_13
+	require.Contains(t, rows[4][6], "group by:test.t.col1, test.t.col2")
+	require.NotContains(t, rows[4][6], "limit:")
 }

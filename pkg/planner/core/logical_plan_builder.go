@@ -330,7 +330,7 @@ func (b *PlanBuilder) buildExpand(p LogicalPlan, gbyItems []expression.Expressio
 }
 
 func (b *PlanBuilder) buildAggregation(ctx context.Context, p LogicalPlan, aggFuncList []*ast.AggregateFuncExpr, gbyItems []expression.Expression,
-	correlatedAggMap map[*ast.AggregateFuncExpr]int) (LogicalPlan, map[int]int, error) {
+	correlatedAggMap map[*ast.AggregateFuncExpr]int, limit *ast.Limit) (LogicalPlan, map[int]int, error) {
 	b.optFlag |= flagBuildKeyInfo
 	b.optFlag |= flagPushDownAgg
 	// We may apply aggregation eliminate optimization.
@@ -495,6 +495,12 @@ func (b *PlanBuilder) buildAggregation(ctx context.Context, p LogicalPlan, aggFu
 		plan4Agg.GroupByItems = gbyItems
 	}
 	plan4Agg.SetSchema(schema4Agg)
+	if allAggsFirstRow && limit != nil {
+		count, offset, err := extractLimitCountOffset(b.ctx, limit)
+		if err == nil && offset == 0 && count != 0 {
+			plan4Agg.limitCount = count
+		}
+	}
 	return plan4Agg, aggIndexMap, nil
 }
 
@@ -4519,7 +4525,7 @@ func (b *PlanBuilder) buildSelect(ctx context.Context, sel *ast.SelectStmt) (p L
 			}
 		}
 		var aggIndexMap map[int]int
-		p, aggIndexMap, err = b.buildAggregation(ctx, p, aggFuncs, gbyCols, correlatedAggMap)
+		p, aggIndexMap, err = b.buildAggregation(ctx, p, aggFuncs, gbyCols, correlatedAggMap, sel.Limit)
 		if err != nil {
 			return nil, err
 		}
@@ -4577,7 +4583,11 @@ func (b *PlanBuilder) buildSelect(ctx context.Context, sel *ast.SelectStmt) (p L
 	}
 
 	if sel.Distinct {
-		p, err = b.buildDistinct(p, oldLen, sel.Limit)
+		limit := sel.Limit
+		if hasAgg {
+			limit = nil
+		}
+		p, err = b.buildDistinct(p, oldLen, limit)
 		if err != nil {
 			return nil, err
 		}
