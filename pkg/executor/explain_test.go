@@ -783,6 +783,11 @@ func TestDistinctLimitOptimization(t *testing.T) {
 	require.Contains(t, rows[1][6], "limit:3")
 	// HashAgg_10
 	require.Contains(t, rows[3][6], "limit:3")
+	rows = tk.MustQuery("explain analyze select distinct col1,col2 from t limit 2,3;").Rows()
+	// HashAgg_14
+	require.Contains(t, rows[1][6], "limit:5")
+	// HashAgg_10
+	require.Contains(t, rows[3][6], "limit:5")
 
 	// group by + limit: push
 	tk.MustQuery("explain select col1,col2 from t group by col1,col2 limit 3;").Check(testkit.Rows(

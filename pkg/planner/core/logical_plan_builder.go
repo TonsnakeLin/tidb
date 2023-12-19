@@ -497,8 +497,8 @@ func (b *PlanBuilder) buildAggregation(ctx context.Context, p LogicalPlan, aggFu
 	plan4Agg.SetSchema(schema4Agg)
 	if allAggsFirstRow && limit != nil {
 		count, offset, err := extractLimitCountOffset(b.ctx, limit)
-		if err == nil && offset == 0 && count != 0 {
-			plan4Agg.limitCount = count
+		if err == nil {
+			plan4Agg.limitCount = count + offset
 		}
 	}
 	return plan4Agg, aggIndexMap, nil
@@ -1944,8 +1944,8 @@ func (b *PlanBuilder) buildDistinct(child LogicalPlan, length int, limit *ast.Li
 	}
 	if limit != nil {
 		count, offset, err := extractLimitCountOffset(b.ctx, limit)
-		if err == nil && offset == 0 && count != 0 {
-			plan4Agg.limitCount = count
+		if err == nil {
+			plan4Agg.limitCount = count + offset
 		}
 	}
 	return plan4Agg, nil
