@@ -965,7 +965,7 @@ func (b *PlanBuilder) buildDo(ctx context.Context, v *ast.DoStmt) (Plan, error) 
 	}
 	if needBuildAgg {
 		var aggIndexMap map[int]int
-		p, aggIndexMap, err = b.buildAggregation(ctx, p, aggFuncs, nil, nil)
+		p, aggIndexMap, err = b.buildAggregation(ctx, p, aggFuncs, nil, nil, nil)
 		if err != nil {
 			return nil, err
 		}

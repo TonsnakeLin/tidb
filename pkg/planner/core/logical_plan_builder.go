@@ -330,7 +330,7 @@ func (b *PlanBuilder) buildExpand(p LogicalPlan, gbyItems []expression.Expressio
 }
 
 func (b *PlanBuilder) buildAggregation(ctx context.Context, p LogicalPlan, aggFuncList []*ast.AggregateFuncExpr, gbyItems []expression.Expression,
-	correlatedAggMap map[*ast.AggregateFuncExpr]int) (LogicalPlan, map[int]int, error) {
+	correlatedAggMap map[*ast.AggregateFuncExpr]int, limit *ast.Limit) (LogicalPlan, map[int]int, error) {
 	b.optFlag |= flagBuildKeyInfo
 	b.optFlag |= flagPushDownAgg
 	// We may apply aggregation eliminate optimization.
@@ -495,6 +495,12 @@ func (b *PlanBuilder) buildAggregation(ctx context.Context, p LogicalPlan, aggFu
 		plan4Agg.GroupByItems = gbyItems
 	}
 	plan4Agg.SetSchema(schema4Agg)
+	if allAggsFirstRow && limit != nil {
+		count, offset, err := extractLimitCountOffset(b.ctx, limit)
+		if err == nil {
+			plan4Agg.limitCount = count + offset
+		}
+	}
 	return plan4Agg, aggIndexMap, nil
 }
 
@@ -1911,7 +1917,7 @@ func (b *PlanBuilder) buildProjection(ctx context.Context, p LogicalPlan, fields
 	return proj, proj.Exprs, oldLen, nil
 }
 
-func (b *PlanBuilder) buildDistinct(child LogicalPlan, length int) (*LogicalAggregation, error) {
+func (b *PlanBuilder) buildDistinct(child LogicalPlan, length int, limit *ast.Limit) (*LogicalAggregation, error) {
 	b.optFlag = b.optFlag | flagBuildKeyInfo
 	b.optFlag = b.optFlag | flagPushDownAgg
 	plan4Agg := LogicalAggregation{
@@ -1935,6 +1941,12 @@ func (b *PlanBuilder) buildDistinct(child LogicalPlan, length int) (*LogicalAggr
 	// of first_row is not always the same as the column arg of first_row.
 	for i, col := range plan4Agg.schema.Columns {
 		col.RetType = plan4Agg.AggFuncs[i].RetTp
+	}
+	if limit != nil {
+		count, offset, err := extractLimitCountOffset(b.ctx, limit)
+		if err == nil {
+			plan4Agg.limitCount = count + offset
+		}
 	}
 	return plan4Agg, nil
 }
@@ -2136,7 +2148,7 @@ func (b *PlanBuilder) buildSemiJoinForSetOperator(
 	leftOriginPlan LogicalPlan,
 	rightPlan LogicalPlan,
 	joinType JoinType) (leftPlan LogicalPlan, err error) {
-	leftPlan, err = b.buildDistinct(leftOriginPlan, leftOriginPlan.Schema().Len())
+	leftPlan, err = b.buildDistinct(leftOriginPlan, leftOriginPlan.Schema().Len(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2260,7 +2272,7 @@ func (b *PlanBuilder) buildUnion(ctx context.Context, selects []LogicalPlan, aft
 		return nil, err
 	}
 	if unionDistinctPlan != nil {
-		unionDistinctPlan, err = b.buildDistinct(unionDistinctPlan, unionDistinctPlan.Schema().Len())
+		unionDistinctPlan, err = b.buildDistinct(unionDistinctPlan, unionDistinctPlan.Schema().Len(), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -4513,7 +4525,7 @@ func (b *PlanBuilder) buildSelect(ctx context.Context, sel *ast.SelectStmt) (p L
 			}
 		}
 		var aggIndexMap map[int]int
-		p, aggIndexMap, err = b.buildAggregation(ctx, p, aggFuncs, gbyCols, correlatedAggMap)
+		p, aggIndexMap, err = b.buildAggregation(ctx, p, aggFuncs, gbyCols, correlatedAggMap, sel.Limit)
 		if err != nil {
 			return nil, err
 		}
@@ -4571,7 +4583,11 @@ func (b *PlanBuilder) buildSelect(ctx context.Context, sel *ast.SelectStmt) (p L
 	}
 
 	if sel.Distinct {
-		p, err = b.buildDistinct(p, oldLen)
+		limit := sel.Limit
+		if hasAgg {
+			limit = nil
+		}
+		p, err = b.buildDistinct(p, oldLen, limit)
 		if err != nil {
 			return nil, err
 		}
